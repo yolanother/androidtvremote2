@@ -1,0 +1,40 @@
+/* Remote tab */
+.remote-tab {
+  width: 100%;
+}
+
+/* Main controls layout */
+.main-controls {
+  width: 100%;
+  margin-bottom: 1.5rem;
+  gap: 1.5rem;
+}
+
+.main-controls.desktop {
+  display: flex;
+}
+
+.main-controls.mobile {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Base styles for all buttons */
+button {
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: scale(0.97) translateY(0);
+}
+
+/* Responsive layout */
+@media (max-width: 767px) {
+  .number-pad {
+    display: none;
+  }
+}
