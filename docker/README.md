@@ -24,14 +24,23 @@ docker-compose up -d
 
 This will:
 1. Build the backend and frontend images
-2. Start the backend service on port 5000
-3. Start the frontend service on port 80
+2. Start the backend service on port 7432
+3. Start the frontend service on port 7433
 4. Create a network for the services to communicate
 
 ## Accessing the Application
 
-- Frontend: http://localhost
-- Backend API: http://localhost/api
+- Frontend: http://localhost:7433
+- Backend API: http://localhost:7433/api
+
+## Environment Variables
+
+The application uses the following environment variables from the `.env` file:
+
+- `BACKEND_PORT`: The port for the backend service (default: 7432)
+- `BACKEND_URL`: The URL for the backend service (default: http://localhost:7432)
+- `REACT_APP_BACKEND_URL`: The URL for the frontend to connect to the backend (default: http://localhost:7432)
+- `FRONTEND_PORT`: The port for the frontend service (default: 7433)
 
 ## Stopping the Application
 

@@ -29,8 +29,13 @@ The easiest way to run the web interface is using Docker:
 # Build and start the containers
 docker-compose up -d
 
-# Access the web interface at http://localhost
+# Access the web interface at http://localhost:7433
+# Access the API at http://localhost:7433/api
 ```
+
+The application uses the following environment variables from the `.env` file:
+- `BACKEND_PORT`: The port for the backend service (default: 7432)
+- `FRONTEND_PORT`: The port for the frontend service (default: 7433)
 
 For more details on the Docker setup, see [docker/README.md](docker/README.md).
 
