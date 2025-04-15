@@ -9,7 +9,7 @@ from flask_cors import CORS
 app = Flask(__name__)
 # Enable CORS for all routes with more specific configuration
 CORS(app, resources={r"/*": {
-    "origins": ["http://localhost:7433", "http://127.0.0.1:7433"],
+    "origins": ["http://localhost:7433", "http://127.0.0.1:7433", os.getenv('FRONTEND_URL', "http://localhost")],
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "allow_headers": ["Content-Type", "Authorization"]
 }})
@@ -31,17 +31,6 @@ app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
 # Store connected TVs
 tvs = {}
-
-@app.route('/api/tvs', methods=['GET'])
-def list_tvs():
-    """List all connected TVs with their IP and name."""
-    # Log the TVs
-    print("Connected TVs:")
-    for ip, info in tvs.items():
-        print(f"IP: {ip}, Name: {info['name']}")
-    return jsonify([
-        {"ip": ip, "name": tvs[ip]["name"], "ip2": ip} for ip in tvs
-    ])
 
 @app.route('/api/tvs', methods=['POST'])
 def add_tv():
