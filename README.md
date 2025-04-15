@@ -25,16 +25,31 @@ This project includes a web interface built with React that allows you to contro
 
 The easiest way to run the web interface is using Docker:
 
+#### Standard Setup
+
 ```sh
-# Build and start the containers
+# Build and start the containers with default settings
 docker-compose up -d
 
 # Access the web interface at http://localhost:7433
 # Access the API at http://localhost:7433/api
 ```
 
-The application uses the following environment variables from the `.env` file:
+#### Using Environment Variables
+
+If you want to use custom environment variables from a .env file:
+
+```sh
+# Build and start the containers with environment variables from .env
+docker-compose -f docker-compose.local.yml up -d
+
+# Access the web interface at the configured port (default: 7433)
+```
+
+The application supports the following environment variables in the `.env` file:
 - `BACKEND_PORT`: The port for the backend service (default: 7432)
+- `BACKEND_URL`: The URL for the backend service (default: http://localhost:7432)
+- `REACT_APP_BACKEND_URL`: The URL for the frontend to connect to the backend (default: http://localhost:7432)
 - `FRONTEND_PORT`: The port for the frontend service (default: 7433)
 
 For more details on the Docker setup, see [docker/README.md](docker/README.md).
