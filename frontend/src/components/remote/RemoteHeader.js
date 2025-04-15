@@ -1,8 +1,24 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings } from 'lucide-react';
+import useTVs from '../../hooks/useTVs';
 import './RemoteHeader.css';
 
 const RemoteHeader = ({ ip, activeButton, onButtonPress }) => {
+  const [tvName, setTvName] = useState('');
+  const { tvs } = useTVs();
+
+  // Get TV name from the list of TVs
+  useEffect(() => {
+    if (tvs && tvs.length > 0 && ip) {
+      const foundTV = tvs.find(tv => tv.ip === ip);
+      if (foundTV) {
+        setTvName(foundTV.name || 'Android TV');
+      } else {
+        setTvName('Android TV');
+      }
+    }
+  }, [tvs, ip]);
+
   return (
     <div className="remote-header">
       <div className="remote-header-left">
@@ -12,7 +28,7 @@ const RemoteHeader = ({ ip, activeButton, onButtonPress }) => {
             <path d="M17 3L12 7L7 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </div>
-        <span className="remote-header-title">Android TV - {ip}</span>
+        <span className="remote-header-title">{tvName} - {ip}</span>
       </div>
       <button
         className={`remote-header-button ${activeButton === "settings" ? "active" : ""}`}

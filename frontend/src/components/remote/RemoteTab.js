@@ -10,7 +10,7 @@ import GamepadTab from './GamepadTab';
 import FunctionsTab from './FunctionsTab';
 import './RemoteTab.css';
 
-const RemoteTab = ({ activeButton, onButtonPress }) => {
+const RemoteTab = ({ activeButton, onButtonPress, activeTab = "remote" }) => {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   
   // Update window width when it changes
@@ -30,6 +30,32 @@ const RemoteTab = ({ activeButton, onButtonPress }) => {
   const showGamepad = windowWidth >= 1232;
   const showFunctions = windowWidth >= 1648;
   
+  // Render different content based on activeTab
+  if (activeTab === "gamepad") {
+    return (
+      <div className="remote-tab">
+        <div className="main-controls">
+          <div className="control-panel">
+            <GamepadTab activeButton={activeButton} onButtonPress={onButtonPress} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (activeTab === "functions") {
+    return (
+      <div className="remote-tab">
+        <div className="main-controls">
+          <div className="control-panel">
+            <FunctionsTab activeButton={activeButton} onButtonPress={onButtonPress} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Default remote tab content
   return (
     <div className="remote-tab">
       {/* Home and Power Buttons */}

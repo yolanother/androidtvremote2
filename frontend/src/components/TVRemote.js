@@ -3,12 +3,14 @@ import { useParams } from "react-router-dom";
 import useTVs from "../hooks/useTVs";
 import RemoteHeader from "./remote/RemoteHeader";
 import VoiceControls from "./remote/VoiceControls";
+import TabNavigation from "./remote/TabNavigation";
 import RemoteTab from "./remote/RemoteTab";
 import BottomNavigation from "./remote/BottomNavigation";
 import "./remote/TVRemote.css";
 
 const TVRemote = () => {
   const { ip: urlIp } = useParams();
+  const [activeTab, setActiveTab] = useState("remote");
   const [activeButton, setActiveButton] = useState(null);
   const [isPressed, setIsPressed] = useState(false);
   const { controlTV } = useTVs();
@@ -47,15 +49,24 @@ const TVRemote = () => {
         onButtonPress={handleButtonPress} 
       />
 
-      {/* Voice Search / Assist */}
-      <VoiceControls 
-        activeButton={activeButton} 
+      {/* Remote Controls Row */}
+      <TabNavigation 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
         onButtonPress={handleButtonPress} 
       />
 
       {/* Main Remote Content - Responsive Layout */}
       <RemoteTab 
         activeButton={activeButton} 
+        onButtonPress={handleButtonPress}
+        activeTab={activeTab}
+      />
+
+      {/* Bottom Navigation */}
+      <BottomNavigation 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
         onButtonPress={handleButtonPress} 
       />
     </div>
