@@ -181,16 +181,6 @@ def control_tv(ip):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/devices', methods=['GET'])
-def list_devices():
-    """List all available devices."""
-    devices = [
-        {"name": "Living Room TV", "ip": "192.168.1.10"},
-        {"name": "Bedroom TV", "ip": "192.168.1.11"},
-        {"name": "Kitchen TV", "ip": "192.168.1.12"}
-    ]
-    return jsonify(devices)
-
 @app.route('/api/available_tvs', methods=['GET'])
 def list_available_tvs():
     """List all available TVs on the network."""
