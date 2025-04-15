@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Button, TextField, Typography, Box, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import useTVs from '../hooks/useTVs';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:7432';
-
 const PairTV = () => {
   const [ip, setIp] = useState('');
   const [name, setName] = useState('');
@@ -11,7 +9,7 @@ const PairTV = () => {
   const [message, setMessage] = useState('');
   const [availableTvs, setAvailableTvs] = useState([]);
   const [selectedAvailableTv, setSelectedAvailableTv] = useState('');
-  const { discoverAvailableTVs } = useTVs();
+  const { discoverAvailableTVs, addTV, pairTV, finishPairing } = useTVs();
 
   // Fetch TVs only once on mount
   useEffect(() => {
@@ -43,52 +41,30 @@ const PairTV = () => {
 
   const startPairing = async () => {
     setMessage('');
-    let skipAdd = false;
     try {
-      const addRes = await fetch(`${BACKEND_URL}/api/tvs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip, name: name || ip })
-      });
-      if (!addRes.ok) {
-        const err = await addRes.text();
-        // If TV already added, proceed to pairing anyway
-        if (err.includes('TV already added')) {
-          skipAdd = true;
-        } else {
-          throw new Error(`Failed to add TV: ${err}`);
+      // First try to add the TV
+      try {
+        await addTV({ ip, name: name || ip });
+      } catch (addError) {
+        // If error is not "TV already added", throw it
+        if (!addError.message.includes('TV already added')) {
+          throw new Error(`Failed to add TV: ${addError.message}`);
         }
+        // Otherwise continue with pairing
       }
-      // Always attempt to start pairing, even if add failed with 'already added'
-      const pairRes = await fetch(`${BACKEND_URL}/api/tvs/${ip}/pair`, {
-        method: 'POST',
-      });
-      if (!pairRes.ok) {
-        const err = await pairRes.text();
-        throw new Error(`Failed to start pairing: ${err}`);
-      }
+      
+      // Start pairing process
+      await pairTV(ip);
       setMessage('Pairing started. Enter the pairing code.');
     } catch (error) {
       setMessage(error.message);
     }
   };
 
-  const finishPairing = () => {
-    fetch(`${BACKEND_URL}/api/tvs/${ip}/pair`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ pairing_code: pairingCode }),
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Failed to finish pairing');
-        }
-        return response.json();
-      })
+  const handleFinishPairing = () => {
+    finishPairing(ip, pairingCode)
       .then(() => setMessage('Pairing successful.'))
-      .catch((error) => setMessage(error.message));
+      .catch((error) => setMessage(`Failed to finish pairing: ${error.message}`));
   };
 
   return (
@@ -144,7 +120,7 @@ const PairTV = () => {
         margin="normal"
         sx={{ mt: 2 }}
       />
-      <Button onClick={finishPairing} variant="contained" color="secondary" sx={{ mt: 2 }}>
+      <Button onClick={handleFinishPairing} variant="contained" color="secondary" sx={{ mt: 2 }}>
         Finish Pairing
       </Button>
       {message && (
