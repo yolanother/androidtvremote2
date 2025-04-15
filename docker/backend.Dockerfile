@@ -16,9 +16,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code
 COPY . .
 
-# Copy .env file
-COPY .env .
-
 # Expose the port the app runs on
 EXPOSE 7432
 
