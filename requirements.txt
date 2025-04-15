@@ -6,3 +6,4 @@ pynput
 zeroconf
 cryptography
 flask-cors
+aiofiles

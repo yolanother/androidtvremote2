@@ -8,6 +8,9 @@ COPY frontend/package*.json ./
 # Install dependencies
 RUN npm ci
 
+# Install postcss dependencies explicitly
+RUN npm install --save-dev postcss-preset-env tailwindcss autoprefixer postcss
+
 # Copy the frontend source code
 COPY frontend/ ./
 
