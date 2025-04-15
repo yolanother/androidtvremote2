@@ -32,5 +32,14 @@
       "fde0:8f7d:ef57:3d1:60e5:1bfc:241b:e8f1",
       "fe80::d66a:6aff:fe7f:55b1"
     ]
+  },
+  {
+    "name": "Garage TV._androidtvremote2._tcp.local.",
+    "addresses": [
+      "192.168.1.70",
+      "fde0:8f7d:ef57:3d1:1deb:d42c:d793:4c0c",
+      "fe80::8981:15ce:4512:d636",
+      "fde0:8f7d:ef57:3d1:ac16:ca94:df32:d6f3"
+    ]
   }
 ]

@@ -6,17 +6,16 @@
 /* Main controls layout */
 .main-controls {
   width: 100%;
-  margin-bottom: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
   gap: 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
-.main-controls.desktop {
-  display: flex;
-}
-
-.main-controls.mobile {
-  display: flex;
-  flex-direction: column;
+.control-panel {
+  flex: 1;
+  min-width: 280px;
+  max-width: 400px;
 }
 
 /* Base styles for all buttons */
@@ -34,7 +33,12 @@ button:active {
 
 /* Responsive layout */
 @media (max-width: 767px) {
-  .number-pad {
-    display: none;
+  .main-controls {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .control-panel {
+    width: 100%;
   }
 }
