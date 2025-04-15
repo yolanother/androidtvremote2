@@ -1,7 +1,6 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask
 import asyncio
 import argparse
-from androidtvremote2 import AndroidTVRemote, CannotConnect, ConnectionClosed, InvalidAuth
 from flask_swagger_ui import get_swaggerui_blueprint
 import os
 from flask_cors import CORS
@@ -15,6 +14,7 @@ CORS(app, resources={r"/*": {
 }})
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# Import the API routes
 from api import routes  # Ensure all API routes are registered
 
 # Swagger setup
@@ -29,81 +29,9 @@ swaggerui_blueprint = get_swaggerui_blueprint(
 )
 app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
 
-# Store connected TVs
-tvs = {}
+# Routes have been moved to api/routes.py
 
-@app.route('/api/tvs', methods=['POST'])
-def add_tv():
-    """Add a new TV by IP address."""
-    data = request.json
-    ip = data.get('ip')
-    name = data.get('name', f'TV-{ip}')
-
-    if ip in tvs:
-        return jsonify({"error": "TV already added."}), 400
-
-    tvs[ip] = {
-        "name": name,
-        "remote": AndroidTVRemote(name, 'cert.pem', 'key.pem', ip)
-    }
-    return jsonify({"message": "TV added successfully.", "name": name, "ip": ip})
-
-@app.route('/api/tvs/<ip>/pair', methods=['POST'])
-def pair_tv(ip):
-    """Pair with a TV."""
-    if ip not in tvs:
-        return jsonify({"error": "TV not found."}), 404
-
-    remote = tvs[ip]['remote']
-    asyncio.run(remote.async_generate_cert_if_missing())
-    asyncio.run(remote.async_start_pairing())
-
-    return jsonify({"message": "Pairing started. Enter the pairing code."})
-
-@app.route('/api/tvs/<ip>/pair', methods=['PUT'])
-def finish_pairing(ip):
-    """Finish pairing with a TV by providing the pairing code."""
-    if ip not in tvs:
-        return jsonify({"error": "TV not found."}), 404
-
-    data = request.json
-    pairing_code = data.get('pairing_code')
-
-    remote = tvs[ip]['remote']
-    try:
-        asyncio.run(remote.async_finish_pairing(pairing_code))
-        return jsonify({"message": "Pairing successful."})
-    except InvalidAuth:
-        return jsonify({"error": "Invalid pairing code."}), 400
-    except ConnectionClosed:
-        return jsonify({"error": "Connection closed. Try pairing again."}), 400
-
-@app.route('/api/tvs/<ip>/control', methods=['POST'])
-def control_tv(ip):
-    """Send a control command to the TV."""
-    if ip not in tvs:
-        return jsonify({"error": "TV not found."}), 404
-
-    data = request.json
-    command = data.get('command')
-
-    remote = tvs[ip]['remote']
-    try:
-        remote.send_key_command(command)
-        return jsonify({"message": "Command sent successfully."})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/devices', methods=['GET'])
-def list_devices():
-    """List all available devices."""
-    devices = [
-        {"name": "Living Room TV", "ip": "192.168.1.10"},
-        {"name": "Bedroom TV", "ip": "192.168.1.11"},
-        {"name": "Kitchen TV", "ip": "192.168.1.12"}
-    ]
-    return jsonify(devices)
-
+# Make the app available to the api package
 from api import app
 if __name__ == '__main__':
     # Parse command line arguments

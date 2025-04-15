@@ -95,6 +95,7 @@ def list_tvs():
         {"ip": ip, "name": tvs[ip]["name"]} for ip in tvs
     ])
 
+# The following routes were moved from app.py
 @app.route('/api/tvs', methods=['POST'])
 def add_tv():
     """Add a new TV by IP address."""
