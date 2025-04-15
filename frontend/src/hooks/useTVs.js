@@ -17,10 +17,20 @@ const fetchApi = async (url, options = {}) => {
 const useTVs = () => {
   const [tvs, setTvs] = useState([]);
 
+  const refreshTVs = () => {
+    return fetchApi('/api/tvs')
+      .then((data) => {
+        setTvs(data);
+        return data;
+      })
+      .catch((error) => {
+        console.error('Error fetching TVs:', error);
+        throw error;
+      });
+  };
+
   useEffect(() => {
-    fetchApi('/api/tvs')
-      .then((data) => setTvs(data))
-      .catch((error) => console.error('Error fetching TVs:', error));
+    refreshTVs().catch(error => console.error('Error in initial TV fetch:', error));
   }, []);
 
   const addTV = ({ ip, name, icon }) => {
@@ -73,7 +83,7 @@ const useTVs = () => {
       })
       .catch((error) => console.error('Error discovering available TVs:', error));
   };
-
+return { tvs, addTV, pairTV, finishPairing, controlTV, listAvailableDevices, discoverAvailableTVs, refreshTVs };
   return { tvs, addTV, pairTV, finishPairing, controlTV, listAvailableDevices, discoverAvailableTVs };
 };
 

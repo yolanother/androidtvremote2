@@ -9,7 +9,7 @@ const PairTV = () => {
   const [message, setMessage] = useState('');
   const [availableTvs, setAvailableTvs] = useState([]);
   const [selectedAvailableTv, setSelectedAvailableTv] = useState('');
-  const { discoverAvailableTVs, addTV, pairTV, finishPairing } = useTVs();
+  const { discoverAvailableTVs, addTV, pairTV, finishPairing, refreshTVs } = useTVs();
 
   // Fetch TVs only once on mount
   useEffect(() => {
@@ -63,7 +63,11 @@ const PairTV = () => {
 
   const handleFinishPairing = () => {
     finishPairing(ip, pairingCode)
-      .then(() => setMessage('Pairing successful.'))
+      .then(() => {
+        setMessage('Pairing successful.');
+        // Refresh the TV list after successful pairing
+        refreshTVs().catch(error => console.error('Error refreshing TVs after pairing:', error));
+      })
       .catch((error) => setMessage(`Failed to finish pairing: ${error.message}`));
   };
 

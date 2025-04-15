@@ -1,40 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardMedia, Typography, Button, Grid, Box } from '@mui/material';
+import React from 'react';
+import { Typography, Button, Grid, Box } from '@mui/material';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import { Link } from 'react-router-dom';
 import Panel from './Panel';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:7432';
+import useTVs from '../hooks/useTVs';
 
 const TVList = () => {
-  const [tvs, setTvs] = useState([]);
-
-  useEffect(() => {
-    fetch(`${BACKEND_URL}/api/tvs`)
-      .then((response) => response.json())
-      .then((data) => setTvs(data))
-      .catch((error) => console.error('Error fetching TVs:', error));
-  }, []);
+  const { tvs, controlTV } = useTVs();
 
   const handlePower = (ip) => {
-    fetch(`${BACKEND_URL}/api/tvs/${ip}/control`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ command: 'POWER' }),
-    }).catch((error) => console.error('Error sending power command:', error));
+    controlTV(ip, 'POWER')
+      .catch((error) => console.error('Error sending power command:', error));
   };
 
   const handleMute = (ip) => {
-    fetch(`${BACKEND_URL}/api/tvs/${ip}/control`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ command: 'MUTE' }),
-    }).catch((error) => console.error('Error sending mute command:', error));
+    controlTV(ip, 'MUTE')
+      .catch((error) => console.error('Error sending mute command:', error));
   };
 
   return (
