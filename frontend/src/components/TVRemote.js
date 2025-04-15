@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useMediaQuery } from "../hooks/use-media-query";
+import useTVs from "../hooks/useTVs";
 import RemoteHeader from "./remote/RemoteHeader";
 import VoiceControls from "./remote/VoiceControls";
 import TabNavigation from "./remote/TabNavigation";
@@ -14,13 +15,17 @@ const TVRemote = ({ ip = "192.168.1.100" }) => {
   const [activeButton, setActiveButton] = useState(null);
   const isLargeScreen = useMediaQuery("(min-width: 768px)");
   const [isPressed, setIsPressed] = useState(false);
+  const { controlTV } = useTVs();
 
   const handleButtonPress = (buttonId, keyCode) => {
     setActiveButton(buttonId);
     setIsPressed(true);
     
-    // Here you would send the keyCode to the Android TV
+    // Send the keyCode to the Android TV
     console.log(`Sending key: ${keyCode}`);
+    controlTV(ip, keyCode)
+      .then(response => console.log('Command sent successfully:', response))
+      .catch(error => console.error('Error sending command:', error));
     
     // Simulate button press release after 150ms
     setTimeout(() => {

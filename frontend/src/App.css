@@ -1,16 +1,181 @@
-/* Base styles */
 body {
-  background-color: #121418;
-  color: white;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: url('https://cdn.midjourney.com/749b3497-9987-408e-9224-b8699ea25544/0_0.png') no-repeat center center fixed;
+  background-size: cover;
   margin: 0;
   padding: 0;
-  -webkit-tap-highlight-color: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  width: 100%;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.content-tile {
+  background: rgba(0, 0, 0, 0.6); /* Darkened background */
+  backdrop-filter: blur(15px); /* Frosted glass effect */
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  color: #ffffff; /* Ensure text is readable */
+  margin: 20px auto;
+  max-width: 800px; /* Center content and limit width */
+}
+
+.sidebar {
+  background: rgba(0, 0, 0, 0.85);
+  color: #ffffff;
+  height: 100vh;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.sidebar .MuiListItemText-primary {
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.sidebar .MuiSvgIcon-root {
+  color: #ffffff;
+  fill: #ffffff !important; /* Ensure the fill color matches the active page color */
+}
+.sidebar .MuiSvgIcon-root .active {
+  color: #ffffff;
+  fill: #90caf9 !important; /* Ensure the fill color matches the active page color */
+}
+
+.sidebar .MuiListItem-root {
+  color: #ffffff; /* Ensure high contrast */
+  transition: background-color 0.3s ease;
+  width: 100%; /* Ensure the item spans the full width of the sidebar */
+  justify-content: flex-start; /* Align content to the left */
+}
+
+.sidebar .MuiListItem-root:hover {
+  background-color: rgba(255, 255, 255, 0.1); /* Subtle hover effect */
+}
+
+.sidebar .MuiListItem-root .MuiSvgIcon-root {
+  color: #ffffff; /* Ensure icon contrast */
+}
+
+.sidebar .MuiListItem-root .MuiListItemText-primary {
+  color: #ffffff; /* Ensure text contrast */
+}
+
+.sidebar .MuiListItem-root:hover .MuiSvgIcon-root,
+.sidebar .MuiListItem-root:hover .MuiListItemText-primary {
+  color: #ffffff; /* Keep icon and text contrast on hover */
+}
+
+.sidebar .MuiListItem-root .MuiSvgIcon-root {
+  color: #ffffff !important; /* Override currentColor to ensure high contrast */
+  color: #ffffff; /* Default white color for inactive icons */
+  fill: #ffffff; /* Default white fill for inactive icons */
+}
+
+.sidebar .MuiList-root {
+  width: 100%; /* Ensure the ul spans the full width of the sidebar */
+}
+
+.sidebar .MuiListItem-root.active {
+  color: #90caf9; /* Light blue color for active page */
+}
+
+.sidebar .MuiListItem-root.active .MuiSvgIcon-root {
+  color: #90caf9; /* Light blue color for active icon */
+  fill: #90caf9 !important; /* Ensure only the active icon has the light blue color */
+  color: #90caf9 !important; /* Light blue color for active icon */
+  fill: #90caf9 !important; /* Ensure only the active icon has the light blue color */
+}
+
+.content {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(15px);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  margin: 20px;
+}
+
+.card {
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+  text-align: center;
+}
+
+.card-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.card-icon {
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 10px;
+}
+
+.panel {
+  background: rgba(0, 0, 0, 0.6); /* Darkened background */
+  backdrop-filter: blur(15px); /* Frosted glass effect */
+  border-radius: 4px;
+  padding: 20px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  color: #ffffff; /* Ensure text is readable */
+  margin: 20px auto;
+  max-width: 800px; /* Center content and limit width */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.css-zxdg2z {
+  padding: 0 !important;
 }
