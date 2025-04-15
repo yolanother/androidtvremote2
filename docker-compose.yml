@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # Backend service
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: androidtv-remote-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./src:/app/src
+      - ./src/api/paired_tvs.json:/app/src/api/paired_tvs.json
+    environment:
+      - FLASK_ENV=production
+      - FLASK_APP=src/app.py
+    networks:
+      - androidtv-network
+
+  # Frontend service
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: androidtv-remote-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - androidtv-network
+
+# Define a network for the services
+networks:
+  androidtv-network:
+    driver: bridge
+
+# Define volumes for persistent data
+volumes:
+  paired_tvs_data:
+    driver: local

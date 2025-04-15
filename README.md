@@ -17,6 +17,23 @@ In addition to commands you can send URLs to open apps registered to handle them
 
 See [demo.py](https://github.com/tronikos/androidtvremote2/blob/main/src/demo.py)
 
+## Web Interface
+
+This project includes a web interface built with React that allows you to control your Android TV from a browser. The web interface provides a responsive remote control with various tabs for different functions.
+
+### Running with Docker
+
+The easiest way to run the web interface is using Docker:
+
+```sh
+# Build and start the containers
+docker-compose up -d
+
+# Access the web interface at http://localhost
+```
+
+For more details on the Docker setup, see [docker/README.md](docker/README.md).
+
 ## Development environment
 
 ```sh
@@ -57,3 +74,18 @@ python src/demo.py
 python -m pip install build
 python -m build
 ```
+
+### Running the Web Interface in Development Mode
+
+To run the web interface in development mode:
+
+```sh
+# Start the backend API
+python src/app.py
+
+# In a separate terminal, start the frontend
+cd frontend
+npm install
+npm start
+
+# Access the web interface at http://localhost:3000
