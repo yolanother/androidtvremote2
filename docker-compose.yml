@@ -10,9 +10,6 @@ services:
     restart: unless-stopped
     ports:
       - "7432:7432"
-    volumes:
-      - ./src:/app/src
-      - ./src/api/paired_tvs.json:/app/src/api/paired_tvs.json
     environment:
       - FLASK_ENV=production
       - FLASK_APP=src/app.py
