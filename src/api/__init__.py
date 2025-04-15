@@ -1,4 +1,6 @@
 import os
+import threading
+import asyncio
 from flask import Flask, send_from_directory
 from flask_swagger_ui import get_swaggerui_blueprint
 from flask_cors import CORS
@@ -11,6 +13,10 @@ CORS(app, resources={r"/*": {
     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "allow_headers": ["Content-Type", "Authorization"]
 }})
+
+# Persistent asyncio event loop for async tasks
+loop = asyncio.new_event_loop()
+threading.Thread(target=loop.run_forever, daemon=True).start()
 
 # Swagger setup
 SWAGGER_URL = '/api/docs'

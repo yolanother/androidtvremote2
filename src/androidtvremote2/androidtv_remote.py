@@ -38,7 +38,6 @@ class AndroidTVRemote:
         host: str,
         api_port: int = 6466,
         pair_port: int = 6467,
-        loop: asyncio.AbstractEventLoop | None = None,
         enable_ime: bool = True,
     ) -> None:
         """Initialize.
@@ -49,7 +48,6 @@ class AndroidTVRemote:
         :param host: IP address of the Android TV.
         :param api_port: port for connecting and sending commands.
         :param pair_port: port for pairing.
-        :param loop: event loop. Used for connections and futures.
         :param enable_ime: Needed for getting current_app.
                Disable for devices that show 'Use keyboard on mobile device screen'.
         """
@@ -59,7 +57,6 @@ class AndroidTVRemote:
         self.host = host
         self._api_port = api_port
         self._pair_port = pair_port
-        self._loop = loop or asyncio.get_running_loop()
         self._enable_ime = enable_ime
         self._transport: asyncio.Transport | None = None
         self._remote_message_protocol: RemoteProtocol | None = None
@@ -181,8 +178,9 @@ class AndroidTVRemote:
     async def _create_ssl_context(self) -> ssl.SSLContext:
         if self._ssl_context:
             return self._ssl_context
+        loop = asyncio.get_running_loop()
         try:
-            ssl_context = await self._loop.run_in_executor(
+            ssl_context = await loop.run_in_executor(
                 None, _load_cert_chain, self._certfile, self._keyfile
             )
         except FileNotFoundError as exc:
@@ -199,20 +197,21 @@ class AndroidTVRemote:
         :raises InvalidAuth: if pairing is needed first.
         """
         ssl_context = await self._create_ssl_context()
-        on_con_lost = self._loop.create_future()
-        on_remote_started = self._loop.create_future()
+        loop = asyncio.get_running_loop()
+        on_con_lost = loop.create_future()
+        on_remote_started = loop.create_future()
         try:
             (
                 self._transport,
                 self._remote_message_protocol,
-            ) = await self._loop.create_connection(
+            ) = await loop.create_connection(
                 lambda: RemoteProtocol(
                     on_con_lost,
                     on_remote_started,
                     self._on_is_on_updated,
                     self._on_current_app_updated,
                     self._on_volume_info_updated,
-                    self._loop,
+                    loop,
                     self._enable_ime,
                 ),
                 self.host,
@@ -281,7 +280,8 @@ class AndroidTVRemote:
 
     def keep_reconnecting(self, invalid_auth_callback: Callable | None = None) -> None:
         """Create a task to keep reconnecting whenever connection is lost."""
-        self._reconnect_task = self._loop.create_task(
+        loop = asyncio.get_running_loop()
+        self._reconnect_task = loop.create_task(
             self._async_reconnect(invalid_auth_callback)
         )
 
@@ -340,17 +340,18 @@ class AndroidTVRemote:
         """
         self.disconnect()
         ssl_context = await self._create_ssl_context()
-        on_con_lost = self._loop.create_future()
+        loop = asyncio.get_running_loop()
+        on_con_lost = loop.create_future()
         try:
             (
                 _,
                 self._pairing_message_protocol,
-            ) = await self._loop.create_connection(
+            ) = await loop.create_connection(
                 lambda: PairingProtocol(
                     on_con_lost,
                     self._client_name,
                     self._certfile,
-                    self._loop,
+                    loop,
                 ),
                 self.host,
                 self._pair_port,

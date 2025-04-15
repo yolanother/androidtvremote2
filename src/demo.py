@@ -114,7 +114,7 @@ async def _host_from_zeroconf(timeout: float) -> str:
                 for addr in info.parsed_scoped_addresses()
             ]
             print(f"  Name: {name}")
-            print(f"  Addresses: {", ".join(addresses)}")
+            print(f"  Addresses: {', '.join(addresses)}")
             if info.properties:
                 print("  Properties:")
                 for key, value in info.properties.items():

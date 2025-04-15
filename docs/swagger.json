@@ -1,0 +1,127 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "version": "1.0.0",
+    "title": "Android TV Remote API",
+    "description": "API documentation for the Android TV Remote application."
+  },
+  "host": "localhost:7432",
+  "basePath": "/",
+  "schemes": ["http"],
+  "paths": {
+    "/api/tvs": {
+      "get": {
+        "summary": "List all connected TVs",
+        "responses": {
+          "200": {
+            "description": "A list of connected TVs",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a new TV",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "ip": { "type": "string" },
+                "name": { "type": "string" }
+              },
+              "required": ["ip"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "TV added successfully"
+          },
+          "400": {
+            "description": "Error adding TV"
+          }
+        }
+      }
+    },
+    "/api/tvs/{ip}/pair": {
+      "post": {
+        "summary": "Start pairing with a TV",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ip",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pairing started"
+          },
+          "404": {
+            "description": "TV not found"
+          }
+        }
+      },
+      "put": {
+        "summary": "Finish pairing with a TV",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ip",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "pairing_code": { "type": "string" }
+              },
+              "required": ["pairing_code"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pairing successful"
+          },
+          "400": {
+            "description": "Error during pairing"
+          }
+        }
+      }
+    },
+    "/api/available_tvs": {
+      "get": {
+        "summary": "List all available TVs on the network",
+        "responses": {
+          "200": {
+            "description": "A list of available TVs",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "ip": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

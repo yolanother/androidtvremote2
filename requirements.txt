@@ -1,0 +1,8 @@
+flask
+flask-swagger-ui
+grpcio-tools
+mypy-protobuf
+pynput
+zeroconf
+cryptography
+flask-cors

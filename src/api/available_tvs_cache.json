@@ -1,0 +1,36 @@
+[
+  {
+    "name": "Bedroom TV._androidtvremote2._tcp.local.",
+    "addresses": [
+      "192.168.1.19",
+      "fde0:8f7d:ef57:3d1:303e:3921:3268:dd8f",
+      "fe80::c41c:a9ad:8c41:9a82",
+      "fde0:8f7d:ef57:3d1:39ab:b026:aaa8:6549"
+    ]
+  },
+  {
+    "name": "SHIELD._androidtvremote2._tcp.local.",
+    "addresses": [
+      "192.168.1.140",
+      "fe80::6097:8b2c:797:39fa"
+    ]
+  },
+  {
+    "name": "Garage TV._androidtvremote2._tcp.local.",
+    "addresses": [
+      "192.168.1.70",
+      "fde0:8f7d:ef57:3d1:d996:ffc5:e5cd:d404",
+      "fe80::8981:15ce:4512:d636",
+      "fde0:8f7d:ef57:3d1:ac16:ca94:df32:d6f3"
+    ]
+  },
+  {
+    "name": "BRAVIA 4K GB._androidtvremote2._tcp.local.",
+    "addresses": [
+      "192.168.1.23",
+      "fde0:8f7d:ef57:3d1:d66a:6aff:fe7f:55b1",
+      "fde0:8f7d:ef57:3d1:60e5:1bfc:241b:e8f1",
+      "fe80::d66a:6aff:fe7f:55b1"
+    ]
+  }
+]
