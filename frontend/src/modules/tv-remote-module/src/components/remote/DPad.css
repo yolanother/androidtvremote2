@@ -32,7 +32,7 @@
   cursor: pointer;
 }
 
-/* Volume Up Icon Container */
+/* Home Icon Container */
 .clip-top-left > div {
   position: absolute;
   top: 40%;
@@ -61,10 +61,10 @@
   cursor: pointer;
 }
 
-/* Home Icon Container */
+/* Volume Up Icon Container */
 .clip-top-right > div {
   position: absolute;
-  top: 30%;
+  top: 40%;
   right: 30%;
   transform: translate(50%, -50%);
 }
@@ -90,7 +90,7 @@
   cursor: pointer;
 }
 
-/* Volume Down Icon Container */
+/* Back Icon Container */
 .clip-bottom-left > div {
   position: absolute;
   bottom: 30%;
@@ -119,7 +119,7 @@
   cursor: pointer;
 }
 
-/* Back Icon Container */
+/* Volume Down Icon Container */
 .clip-bottom-right > div {
   position: absolute;
   bottom: 30%;
