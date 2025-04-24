@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import useTVs from "../hooks/useTVs";
-import { RemoteControl } from "../../../react/modules/tv-remote-module/src";
+import { RemoteControl } from "android-tv-remote-control";
 
 const TVRemote = () => {
   const { ip: urlIp } = useParams();
   const [ip, setIp] = useState(urlIp || "192.168.1.100");
   const { controlTV, tvs } = useTVs();
-  const [tvName, setTvName] = useState('');
+  const [tvName, setTvName] = useState('Android TV');
 
   // Update IP if URL parameter changes
   useEffect(() => {
@@ -43,8 +43,8 @@ const TVRemote = () => {
   };
 
   return (
-    <RemoteControl 
-      ip={ip} 
+    <RemoteControl
+      ip={ip}
       tvName={tvName}
       onCommand={handleCommand}
     />

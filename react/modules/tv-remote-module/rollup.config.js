@@ -1,13 +1,13 @@
-import babel from '@rollup/plugin-babel';
-import resolve from '@rollup/plugin-node-resolve';
-import commonjs from '@rollup/plugin-commonjs';
-import terser from '@rollup/plugin-terser';
-import peerDepsExternal from 'rollup-plugin-peer-deps-external';
-import postcss from 'rollup-plugin-postcss';
+const babel = require('@rollup/plugin-babel');
+const resolve = require('@rollup/plugin-node-resolve');
+const commonjs = require('@rollup/plugin-commonjs');
+const terser = require('@rollup/plugin-terser');
+const peerDepsExternal = require('rollup-plugin-peer-deps-external');
+const postcss = require('rollup-plugin-postcss');
 
 const packageJson = require('./package.json');
 
-export default {
+module.exports = {
   input: 'src/index.js',
   output: [
     {
@@ -26,16 +26,23 @@ export default {
     resolve({
       extensions: ['.js', '.jsx'],
     }),
-    commonjs(),
+    commonjs({
+      include: 'node_modules/**',
+      transformMixedEsModules: true
+    }),
     babel({
       babelHelpers: 'bundled',
       exclude: 'node_modules/**',
-      presets: ['@babel/preset-env', '@babel/preset-react'],
+      presets: [
+        '@babel/preset-env',
+        ['@babel/preset-react', { runtime: 'automatic' }]
+      ]
     }),
     postcss({
       extensions: ['.css'],
       minimize: true,
-      extract: 'styles.css',
+      extract: false,
+      modules: false
     }),
     terser(),
   ],

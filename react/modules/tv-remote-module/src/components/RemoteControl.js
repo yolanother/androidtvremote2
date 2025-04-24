@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import RemoteHeader from "./remote/RemoteHeader";
-import VoiceControls from "./remote/VoiceControls";
 import TabNavigation from "./remote/TabNavigation";
 import RemoteTab from "./remote/RemoteTab";
 import BottomNavigation from "./remote/BottomNavigation";

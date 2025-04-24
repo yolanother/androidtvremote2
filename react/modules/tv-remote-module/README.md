@@ -4,118 +4,68 @@ A React component library for controlling Android TVs.
 
 ## Installation
 
-### From npm registry (once published)
+You can install this package using npm:
 
 ```bash
-# Using npm
 npm install android-tv-remote-control
-
-# Using yarn
-yarn add android-tv-remote-control
-
-# Using pnpm
-pnpm add android-tv-remote-control
 ```
 
-### Directly from GitHub repository
+Or directly from the git repository:
 
 ```bash
-# Using npm
 npm install git+https://github.com/yourusername/androidtvremote2.git#react/modules/tv-remote-module
-
-# Using yarn
-yarn add git+https://github.com/yourusername/androidtvremote2.git#react/modules/tv-remote-module
-
-# Using pnpm
-pnpm add git+https://github.com/yourusername/androidtvremote2.git#react/modules/tv-remote-module
 ```
 
 ## Usage
 
-### Basic Usage
-
 ```jsx
+import React from 'react';
 import { RemoteControl } from 'android-tv-remote-control';
-import 'android-tv-remote-control/dist/styles.css';
 
-function App() {
-  return (
-    <div className="app">
-      <RemoteControl 
-        ip="192.168.1.100" 
-        onCommand={(command) => console.log(`Sending command: ${command}`)}
-      />
-    </div>
-  );
-}
-```
-
-### With Custom API Integration
-
-```jsx
-import { RemoteControl } from 'android-tv-remote-control';
-import 'android-tv-remote-control/dist/styles.css';
-
-function App() {
-  const handleCommand = async (ip, command) => {
-    try {
-      const response = await fetch(`/api/tvs/${ip}/control`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ command }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error sending command:', error);
-      throw error;
-    }
+const MyTVRemote = () => {
+  const handleCommand = (ip, command) => {
+    // Send the command to your Android TV
+    console.log(`Sending command ${command} to TV at ${ip}`);
+    
+    // Implement your API call here
+    return fetch(`http://your-api.com/tv/${ip}/command/${command}`)
+      .then(response => response.json());
   };
 
   return (
-    <div className="app">
-      <RemoteControl 
-        ip="192.168.1.100" 
-        onCommand={handleCommand}
-      />
-    </div>
+    <RemoteControl 
+      ip="192.168.1.100" 
+      tvName="Living Room TV"
+      onCommand={handleCommand}
+    />
   );
-}
+};
+
+export default MyTVRemote;
 ```
 
 ## Props
 
+The `RemoteControl` component accepts the following props:
+
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `ip` | string | required | The IP address of the Android TV |
-| `onCommand` | function | required | Callback function that receives the IP and command to send to the TV |
-| `className` | string | '' | Additional CSS class for styling |
+| `tvName` | string | "Android TV" | The name of the TV to display in the header |
+| `onCommand` | function | required | Function to call when a button is pressed. Receives `(ip, command)` as arguments |
+| `className` | string | "" | Additional CSS class to apply to the remote container |
 | `showTabs` | boolean | true | Whether to show the tab navigation |
-| `initialTab` | string | 'remote' | Initial active tab ('remote', 'gamepad', or 'functions') |
+| `initialTab` | string | "remote" | The initial active tab ("remote", "gamepad", "functions") |
 
 ## Development
 
-### Setup
+To build the package:
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/android-tv-remote-control.git
-cd android-tv-remote-control
-
-# Install dependencies
-npm install
-
-# Build the library
 npm run build
 ```
 
-### Running Tests
+To run tests:
 
 ```bash
 npm test
