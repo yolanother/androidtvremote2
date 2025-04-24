@@ -1,0 +1,41 @@
+/* Bottom navigation */
+.bottom-navigation {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+}
+
+.bottom-nav-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: all 0.2s;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.bottom-nav-button.remote {
+  color: #00e5a0;
+}
+
+.bottom-nav-button.gamepad,
+.bottom-nav-button.functions {
+  color: #9ca3af;
+}
+
+.bottom-nav-button.gamepad:hover,
+.bottom-nav-button.functions:hover {
+  color: #d1d5db;
+}
+
+.bottom-nav-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.bottom-nav-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+}

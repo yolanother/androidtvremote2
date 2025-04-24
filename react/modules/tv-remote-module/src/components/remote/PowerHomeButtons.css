@@ -1,0 +1,41 @@
+/* Power and Home buttons */
+.power-home-buttons {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 2.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.circle-button {
+  width: 4rem;
+  height: 4rem;
+  background: linear-gradient(to bottom right, rgba(30, 33, 38, 0.9), rgba(37, 42, 51, 0.9));
+  backdrop-filter: blur(12px);
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.circle-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.circle-button.active {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.circle-button-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: white;
+}
+
+.circle-button-icon.power {
+  color: #f87171;
+}
