@@ -1,0 +1,50 @@
+/* Header styles */
+.remote-header {
+  width: 100%;
+  background-color: rgba(30, 33, 38, 0.8);
+  backdrop-filter: blur(12px);
+  border-radius: 1rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.remote-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.remote-header-logo {
+  color: #00e5a0;
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.remote-header-title {
+  color: white;
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+.remote-header-button {
+  color: white;
+  padding: 0.5rem;
+  border-radius: 9999px;
+  transition: all 0.15s;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: none;
+  cursor: pointer;
+}
+
+.remote-header-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.remote-header-button.active {
+  background-color: rgba(255, 255, 255, 0.15);
+}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import useTVs from "../hooks/useTVs";
-import { RemoteControl } from "android-tv-remote-control";
+import { RemoteControl } from "../modules/tv-remote-module/src";
+import "../modules/tv-remote-module/src/styles/RemoteControl.css";
 
 const TVRemote = () => {
   const { ip: urlIp } = useParams();
