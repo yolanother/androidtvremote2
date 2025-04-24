@@ -9,20 +9,9 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
   return (
     <div className="dpad-container">
       <div className="dpad-background">
-        {/* Volume Up Button - Top Left */}
-        <div 
-          className={`clip-top-left ${activeButton === "vol-up" ? "active" : ""}`}
-          onClick={() => onButtonPress("vol-up", "VOLUME_UP")}
-          aria-label="Volume Up"
-        >
-          <div>
-            <Volume2 />
-          </div>
-        </div>
-
-        {/* Home Button - Top Right */}
+        {/* Home Button - Top Left */}
         <div
-          className={`clip-top-right ${activeButton === "home" ? "active" : ""}`}
+          className={`clip-top-left ${activeButton === "home" ? "active" : ""}`}
           onClick={() => onButtonPress("home", "HOME")}
           aria-label="Home"
         >
@@ -31,25 +20,36 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
           </div>
         </div>
 
-        {/* Volume Down Button - Bottom Left */}
-        <div 
-          className={`clip-bottom-left ${activeButton === "vol-down" ? "active" : ""}`}
-          onClick={() => onButtonPress("vol-down", "VOLUME_DOWN")}
-          aria-label="Volume Down"
+        {/* Volume Up Button - Top Right */}
+        <div
+          className={`clip-top-right ${activeButton === "vol-up" ? "active" : ""}`}
+          onClick={() => onButtonPress("vol-up", "VOLUME_UP")}
+          aria-label="Volume Up"
         >
           <div>
-            <Volume />
+            <Volume2 />
           </div>
         </div>
 
-        {/* Back Button - Bottom Right */}
+        {/* Back Button - Bottom Left */}
         <div
-          className={`clip-bottom-right ${activeButton === "back" ? "active" : ""}`}
+          className={`clip-bottom-left ${activeButton === "back" ? "active" : ""}`}
           onClick={() => onButtonPress("back", "BACK")}
           aria-label="Back"
         >
           <div>
             <Back />
+          </div>
+        </div>
+
+        {/* Volume Down Button - Bottom Right */}
+        <div
+          className={`clip-bottom-right ${activeButton === "vol-down" ? "active" : ""}`}
+          onClick={() => onButtonPress("vol-down", "VOLUME_DOWN")}
+          aria-label="Volume Down"
+        >
+          <div>
+            <Volume />
           </div>
         </div>
 
