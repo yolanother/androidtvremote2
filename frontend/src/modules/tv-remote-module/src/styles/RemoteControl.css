@@ -43,3 +43,60 @@
     padding: 0.5rem;
   }
 }
+
+/* Connection error styles */
+.error-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.connection-error {
+  text-align: center;
+  padding: 20px;
+}
+
+.connection-error h2 {
+  margin: 0 0 15px;
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+.connection-error p {
+  margin: 0 0 15px;
+  opacity: 0.8;
+}
+
+.error-details {
+  font-size: 0.9rem;
+  opacity: 0.6;
+  margin-bottom: 20px;
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 10px;
+  border-radius: 8px;
+  max-width: 300px;
+  margin-left: auto;
+  margin-right: auto;
+  word-break: break-word;
+}
+
+.retry-button {
+  background: linear-gradient(to bottom right, rgba(0, 122, 255, 0.2), rgba(0, 99, 230, 0.2));
+  border: 1px solid rgba(0, 122, 255, 0.3);
+  border-radius: 8px;
+  color: white;
+  font-size: 1rem;
+  font-weight: 500;
+  padding: 12px 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.retry-button:hover {
+  background: linear-gradient(to bottom right, rgba(0, 122, 255, 0.3), rgba(0, 99, 230, 0.3));
+}
+
+.retry-button:active {
+  transform: scale(0.98);
+}

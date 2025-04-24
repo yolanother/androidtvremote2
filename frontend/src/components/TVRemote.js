@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import useTVs from "../hooks/useTVs";
-import { RemoteControl } from "../modules/tv-remote-module/src";
+import { RemoteControl, useRemoteControl } from "../modules/tv-remote-module/src";
 import "../modules/tv-remote-module/src/styles/RemoteControl.css";
 
 const TVRemote = () => {
   const { ip: urlIp } = useParams();
   const [ip, setIp] = useState(urlIp || "192.168.1.100");
-  const { controlTV, tvs } = useTVs();
+  const { controlTV, tvs, pairTV, finishPairing } = useTVs();
   const [tvName, setTvName] = useState('Android TV');
 
   // Update IP if URL parameter changes
@@ -43,11 +43,40 @@ const TVRemote = () => {
       });
   };
 
+  // Custom fetch API implementation that uses our existing useTVs hook
+  const customFetchApi = async (url, options = {}) => {
+    // Extract the endpoint and parameters from the URL
+    const urlParts = url.split('/');
+    const endpoint = urlParts[urlParts.length - 1];
+    const tvIp = urlParts[urlParts.length - 2];
+    
+    // Handle different API endpoints
+    if (endpoint === 'control' && options.method === 'POST') {
+      const { command } = JSON.parse(options.body);
+      return controlTV(tvIp, command);
+    } else if (endpoint === 'pair') {
+      if (options.method === 'POST') {
+        return pairTV(tvIp);
+      } else if (options.method === 'PUT') {
+        const { pairing_code } = JSON.parse(options.body);
+        return finishPairing(tvIp, pairing_code);
+      }
+    }
+    
+    // Default fallback to regular fetch
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  };
+
   return (
     <RemoteControl
       ip={ip}
       tvName={tvName}
       onCommand={handleCommand}
+      customFetchApi={customFetchApi}
     />
   );
 };
