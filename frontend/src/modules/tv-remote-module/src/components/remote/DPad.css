@@ -32,6 +32,20 @@
   cursor: pointer;
 }
 
+/* Volume Up Icon Container */
+.clip-top-left > div {
+  position: absolute;
+  top: 60%;
+  left: 30%;
+  transform: translate(-50%, -50%);
+}
+
+.clip-top-left svg {
+  width: 1.75rem;
+  height: 1.75rem;
+  color: white;
+}
+
 .clip-top-right {
   position: absolute;
   top: 0;
@@ -45,6 +59,33 @@
   justify-content: center;
   transition: all 0.2s;
   cursor: pointer;
+}
+
+/* Channel Up Icon Container */
+.clip-top-right > div {
+  position: absolute;
+  top: 30%;
+  right: 30%;
+  transform: translate(50%, -50%);
+}
+
+.clip-top-right .flex {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.clip-top-right svg:first-child {
+  width: 1.75rem;
+  height: 1.75rem;
+  color: white;
+}
+
+.clip-top-right svg:last-child {
+  width: 1rem;
+  height: 1rem;
+  color: white;
+  margin-top: -0.25rem;
 }
 
 .clip-bottom-left {
@@ -62,6 +103,20 @@
   cursor: pointer;
 }
 
+/* Volume Down Icon Container */
+.clip-bottom-left > div {
+  position: absolute;
+  bottom: 30%;
+  left: 30%;
+  transform: translate(-50%, 50%);
+}
+
+.clip-bottom-left svg {
+  width: 1.75rem;
+  height: 1.75rem;
+  color: white;
+}
+
 .clip-bottom-right {
   position: absolute;
   bottom: 0;
@@ -75,6 +130,34 @@
   justify-content: center;
   transition: all 0.2s;
   cursor: pointer;
+}
+
+/* Channel Down Icon Container */
+.clip-bottom-right > div {
+  position: absolute;
+  bottom: 30%;
+  right: 30%;
+  transform: translate(50%, 50%);
+}
+
+.clip-bottom-right .flex {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.clip-bottom-right svg:first-child {
+  width: 1rem;
+  height: 1rem;
+  color: white;
+  margin-bottom: 0.25rem;
+}
+
+.clip-bottom-right svg:last-child {
+  width: 1.75rem;
+  height: 1.75rem;
+  color: white;
+  margin-top: -0.25rem;
 }
 
 .clip-top-left:hover,
@@ -124,11 +207,17 @@
 
 .dpad-arrow:hover {
   background-color: rgba(255, 255, 255, 0.1);
-  transform: scale(1.1);
 }
 
 .dpad-arrow:hover svg {
   transform: scale(1.1);
+}
+
+.dpad-arrow svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: white;
+  fill: white;
 }
 
 .dpad-arrow.active {
@@ -137,26 +226,27 @@
 
 .dpad-up {
   top: 15%;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 40%;
+  color: #fff;
 }
 
 .dpad-right {
   right: 15%;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 40%;
+  color: #fff;
 }
 
 .dpad-down {
   bottom: 15%;
-  left: 50%;
-  transform: translateX(-50%);
+  right: 40%;
+  color: #fff;
 }
 
 .dpad-left {
   left: 15%;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 40%;
+  fill: #fff;
+  color: #fff;
 }
 
 .dpad-ok {

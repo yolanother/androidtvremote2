@@ -15,8 +15,8 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
           onClick={() => onButtonPress("vol-up", "VOLUME_UP")}
           aria-label="Volume Up"
         >
-          <div className="absolute top-[30%] left-[30%] transform -translate-x-1/2 -translate-y-1/2">
-            <Volume2 className="w-7 h-7 text-white" />
+          <div>
+            <Volume2 />
           </div>
         </div>
 
@@ -26,10 +26,10 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
           onClick={() => onButtonPress("ch-up", "CHANNEL_UP")}
           aria-label="Channel Up"
         >
-          <div className="absolute top-[30%] right-[30%] transform translate-x-1/2 -translate-y-1/2">
-            <div className="flex flex-col items-center">
-              <ChevronUp className="w-7 h-7 text-white" />
-              <Tv2 className="w-4 h-4 text-white -mt-1" />
+          <div>
+            <div className="flex">
+              <ChevronUp />
+              <Tv2 />
             </div>
           </div>
         </div>
@@ -40,8 +40,8 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
           onClick={() => onButtonPress("vol-down", "VOLUME_DOWN")}
           aria-label="Volume Down"
         >
-          <div className="absolute bottom-[30%] left-[30%] transform -translate-x-1/2 translate-y-1/2">
-            <Volume className="w-7 h-7 text-white" />
+          <div>
+            <Volume />
           </div>
         </div>
 
@@ -51,10 +51,10 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
           onClick={() => onButtonPress("ch-down", "CHANNEL_DOWN")}
           aria-label="Channel Down"
         >
-          <div className="absolute bottom-[30%] right-[30%] transform translate-x-1/2 translate-y-1/2">
-            <div className="flex flex-col items-center">
-              <Tv2 className="w-4 h-4 text-white mb-1" />
-              <ChevronDown className="w-7 h-7 text-white -mt-1" />
+          <div>
+            <div className="flex">
+              <Tv2 />
+              <ChevronDown />
             </div>
           </div>
         </div>
@@ -69,7 +69,7 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
               onClick={() => onButtonPress("dpad-up", "DPAD_UP")}
               aria-label="D-Pad Up"
             >
-              <ArrowUp className="w-6 h-6 text-white" />
+              <ArrowUp />
             </button>
 
             {/* Right Arrow */}
@@ -78,7 +78,7 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
               onClick={() => onButtonPress("dpad-right", "DPAD_RIGHT")}
               aria-label="D-Pad Right"
             >
-              <ArrowRight className="w-6 h-6 text-white" />
+              <ArrowRight />
             </button>
 
             {/* Down Arrow */}
@@ -87,7 +87,7 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
               onClick={() => onButtonPress("dpad-down", "DPAD_DOWN")}
               aria-label="D-Pad Down"
             >
-              <ArrowDown className="w-6 h-6 text-white" />
+              <ArrowDown />
             </button>
 
             {/* Left Arrow */}
@@ -96,7 +96,7 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
               onClick={() => onButtonPress("dpad-left", "DPAD_LEFT")}
               aria-label="D-Pad Left"
             >
-              <ArrowLeft className="w-6 h-6 text-white" />
+              <ArrowLeft />
             </button>
 
             {/* OK Button (DPAD_CENTER) */}
