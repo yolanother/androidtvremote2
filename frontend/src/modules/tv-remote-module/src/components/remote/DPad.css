@@ -124,6 +124,11 @@
 
 .dpad-arrow:hover {
   background-color: rgba(255, 255, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.dpad-arrow:hover svg {
+  transform: scale(1.1);
 }
 
 .dpad-arrow.active {
