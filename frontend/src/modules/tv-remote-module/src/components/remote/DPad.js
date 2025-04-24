@@ -1,7 +1,7 @@
 import React from 'react';
-import { 
-  ArrowUp, ArrowDown, ArrowLeft, ArrowRight, 
-  Volume2, Volume, ChevronUp, ChevronDown, Tv2 
+import {
+  ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
+  Volume2, Volume, Home, ArrowLeft as Back
 } from 'lucide-react';
 import './DPad.css';
 
@@ -20,17 +20,14 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
           </div>
         </div>
 
-        {/* Channel Up Button - Top Right */}
-        <div 
-          className={`clip-top-right ${activeButton === "ch-up" ? "active" : ""}`}
-          onClick={() => onButtonPress("ch-up", "CHANNEL_UP")}
-          aria-label="Channel Up"
+        {/* Home Button - Top Right */}
+        <div
+          className={`clip-top-right ${activeButton === "home" ? "active" : ""}`}
+          onClick={() => onButtonPress("home", "HOME")}
+          aria-label="Home"
         >
           <div>
-            <div className="flex">
-              <ChevronUp />
-              <Tv2 />
-            </div>
+            <Home />
           </div>
         </div>
 
@@ -45,17 +42,14 @@ const DPad = ({ activeButton, onButtonPress, isLargeScreen }) => {
           </div>
         </div>
 
-        {/* Channel Down Button - Bottom Right */}
-        <div 
-          className={`clip-bottom-right ${activeButton === "ch-down" ? "active" : ""}`}
-          onClick={() => onButtonPress("ch-down", "CHANNEL_DOWN")}
-          aria-label="Channel Down"
+        {/* Back Button - Bottom Right */}
+        <div
+          className={`clip-bottom-right ${activeButton === "back" ? "active" : ""}`}
+          onClick={() => onButtonPress("back", "BACK")}
+          aria-label="Back"
         >
           <div>
-            <div className="flex">
-              <Tv2 />
-              <ChevronDown />
-            </div>
+            <Back />
           </div>
         </div>
 

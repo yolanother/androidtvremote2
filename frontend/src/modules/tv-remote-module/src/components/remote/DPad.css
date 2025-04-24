@@ -35,7 +35,7 @@
 /* Volume Up Icon Container */
 .clip-top-left > div {
   position: absolute;
-  top: 60%;
+  top: 40%;
   left: 30%;
   transform: translate(-50%, -50%);
 }
@@ -61,7 +61,7 @@
   cursor: pointer;
 }
 
-/* Channel Up Icon Container */
+/* Home Icon Container */
 .clip-top-right > div {
   position: absolute;
   top: 30%;
@@ -69,23 +69,10 @@
   transform: translate(50%, -50%);
 }
 
-.clip-top-right .flex {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.clip-top-right svg:first-child {
+.clip-top-right svg {
   width: 1.75rem;
   height: 1.75rem;
   color: white;
-}
-
-.clip-top-right svg:last-child {
-  width: 1rem;
-  height: 1rem;
-  color: white;
-  margin-top: -0.25rem;
 }
 
 .clip-bottom-left {
@@ -132,7 +119,7 @@
   cursor: pointer;
 }
 
-/* Channel Down Icon Container */
+/* Back Icon Container */
 .clip-bottom-right > div {
   position: absolute;
   bottom: 30%;
@@ -140,24 +127,10 @@
   transform: translate(50%, 50%);
 }
 
-.clip-bottom-right .flex {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.clip-bottom-right svg:first-child {
-  width: 1rem;
-  height: 1rem;
-  color: white;
-  margin-bottom: 0.25rem;
-}
-
-.clip-bottom-right svg:last-child {
+.clip-bottom-right svg {
   width: 1.75rem;
   height: 1.75rem;
   color: white;
-  margin-top: -0.25rem;
 }
 
 .clip-top-left:hover,
@@ -226,7 +199,7 @@
 
 .dpad-up {
   top: 15%;
-  left: 40%;
+  left: 41%;
   color: #fff;
 }
 
