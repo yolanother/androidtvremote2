@@ -1,0 +1,11 @@
+{% extends 'flask_restx/swagger-ui.html' %}
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" type="text/css" href="/api/docs/static/swagger-dark.css">
+{% endblock %}
+{% block topbar %}
+  <div class="topbar-wrapper">
+    <img src="/api/docs/static/logo.png" alt="Logo" style="height:48px;vertical-align:middle;margin-right:16px;">
+    <span>Android TV Remote API</span>
+  </div>
+{% endblock %}

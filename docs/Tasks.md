@@ -26,3 +26,5 @@
 ## Deployment
 - [x] Set up Docker for containerized deployment.
 - [x] Add CI/CD pipeline for automated testing and deployment.
+- [ ] Frontend: Automatically switch to the selected device after pairing completes.
+- [ ] Frontend: Show the pairing keyboard as an overlay from anywhere in the app.

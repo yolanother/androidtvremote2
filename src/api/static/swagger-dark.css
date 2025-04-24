@@ -1,0 +1,52 @@
+body.swagger-section, .swagger-ui, .swagger-ui .topbar {
+  background: #181a20 !important;
+  color: #f5f5f5 !important;
+}
+.swagger-ui .topbar {
+  background: #23272f !important;
+  border-bottom: 1px solid #333;
+}
+.swagger-ui .topbar-wrapper img {
+  content: url('/api/docs/static/logo.png');
+  height: 48px;
+  width: auto;
+  margin-right: 16px;
+}
+.swagger-ui .topbar-wrapper span {
+  color: #00c78c !important;
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+.swagger-ui .scheme-container, .swagger-ui .info, .swagger-ui .opblock, .swagger-ui .opblock-tag {
+  background: #23272f !important;
+  color: #f5f5f5 !important;
+}
+.swagger-ui .opblock .opblock-summary {
+  background: #23272f !important;
+  color: #f5f5f5 !important;
+}
+.swagger-ui .opblock .opblock-summary-method {
+  color: #00c78c !important;
+}
+.swagger-ui .btn {
+  background: #00c78c !important;
+  color: #181a20 !important;
+  border: none;
+}
+.swagger-ui .btn:hover {
+  background: #009e6d !important;
+}
+.swagger-ui .opblock .opblock-section-header {
+  background: #23272f !important;
+  color: #00c78c !important;
+}
+.swagger-ui .responses-inner {
+  background: #23272f !important;
+}
+.swagger-ui .response-col_status {
+  color: #00c78c !important;
+}
+.swagger-ui .markdown code, .swagger-ui pre {
+  background: #181a20 !important;
+  color: #00c78c !important;
+}

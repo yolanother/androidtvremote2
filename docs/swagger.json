@@ -18,7 +18,11 @@
             "schema": {
               "type": "array",
               "items": {
-                "type": "string"
+                "type": "object",
+                "properties": {
+                  "ip": { "type": "string" },
+                  "name": { "type": "string" }
+                }
               }
             }
           }
@@ -103,6 +107,37 @@
         }
       }
     },
+    "/api/tvs/{ip}/control": {
+      "post": {
+        "summary": "Send a control command to the TV",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ip",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "command": { "type": "string" }
+              },
+              "required": ["command"]
+            }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Command sent successfully" },
+          "400": { "description": "Pairing required or connection closed" },
+          "404": { "description": "TV not found" },
+          "500": { "description": "Cannot connect to TV or other error" }
+        }
+      }
+    },
     "/api/available_tvs": {
       "get": {
         "summary": "List all available TVs on the network",
@@ -115,10 +150,30 @@
                 "type": "object",
                 "properties": {
                   "name": { "type": "string" },
-                  "ip": { "type": "string" }
+                  "addresses": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/commands": {
+      "get": {
+        "summary": "List all available control commands",
+        "responses": {
+          "200": {
+            "description": "A list of available control commands",
+            "schema": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "500": {
+            "description": "Error reading commands file"
           }
         }
       }
