@@ -142,3 +142,6 @@ docker-compose.local.yml
 *.db
 cert.pem
 key.pem
+
+# Agent tooling scaffolding, synced by orch rather than authored here.
+.orchestrator/tasks/commitmsg.txt

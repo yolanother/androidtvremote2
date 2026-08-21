@@ -1,12 +1,13 @@
-"""Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the repository root.
-
-Environment-driven configuration for the Android TV Remote appliance. Defines the
-`Settings` model covering the NFS-backed data directory, HTTP bind address, optional
-bearer token, pairing client name, mDNS discovery behaviour, iframe embedding policy, and
-CORS origins, together with the derived paths for the SQLite database and per-device
-certificate directories. There is deliberately no config file: every knob is an
-environment variable so the container is configured entirely through compose.
-"""
+# Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
+# repository root.
+#
+# Environment-driven configuration for the Android TV Remote appliance. Defines the
+# Settings model covering the NFS-backed data directory, HTTP bind address, optional
+# bearer token, pairing client name, mDNS discovery behaviour, iframe embedding policy,
+# and CORS origins, together with the derived paths for the SQLite database and
+# per-device certificate directories. There is deliberately no config file: every knob is
+# an environment variable so the container is configured entirely through compose.
+"""Environment-driven configuration for the Android TV Remote appliance."""
 
 from __future__ import annotations
 

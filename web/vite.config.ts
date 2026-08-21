@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
+ * repository root.
+ *
+ * Vite build and dev-server configuration for the Android TV Remote web UI. Registers the
+ * React and Tailwind v4 plugins, maps the `@/` path alias to src/, and proxies /api and
+ * /healthz (including WebSocket upgrades) to the FastAPI appliance so the SPA runs
+ * same-origin in development exactly as it does when served from the container.
+ */
 import path from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -5,7 +14,6 @@ import tailwindcss from '@tailwindcss/vite'
 
 const API_TARGET = process.env.VITE_API_TARGET ?? 'http://127.0.0.1:7433'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {

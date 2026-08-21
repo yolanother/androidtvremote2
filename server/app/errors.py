@@ -1,10 +1,11 @@
-"""Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the repository root.
-
-Domain exception hierarchy for the Android TV Remote appliance. Every exception here maps
-to exactly one machine-readable `error.code` and HTTP status in the frozen API contract,
-so the REST layer, the WebSocket stream, and the MCP tools can all translate failures into
-identical envelopes without duplicating the mapping table.
-"""
+# Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
+# repository root.
+#
+# Domain exception hierarchy for the Android TV Remote appliance. Every exception here
+# maps to exactly one machine-readable error.code and HTTP status in the frozen API
+# contract, so the REST layer, the WebSocket stream, and the MCP tools can all translate
+# failures into identical envelopes without duplicating the mapping table.
+"""Domain exception hierarchy for the Android TV Remote appliance."""
 
 from __future__ import annotations
 

@@ -1,11 +1,12 @@
-"""Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the repository root.
-
-Pydantic models forming the wire contract of the Android TV Remote appliance. Defines the
-Device, DeviceState, DiscoveredDevice, KeyDescriptor and AppDescriptor entities plus every
-request body accepted by the REST API, and mirrors docs/design/api-contract.md exactly.
-These models are shared verbatim by the REST routers, the WebSocket event stream, and the
-MCP tool layer so that all three surfaces expose identical JSON.
-"""
+# Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
+# repository root.
+#
+# Pydantic models forming the wire contract of the Android TV Remote appliance. Defines
+# the Device, DeviceState, DiscoveredDevice, KeyDescriptor and AppDescriptor entities plus
+# every request body accepted by the REST API, mirroring docs/design/api-contract.md
+# exactly. These models are shared verbatim by the REST routers, the WebSocket event
+# stream, and the MCP tool layer so all three surfaces expose identical JSON.
+"""Pydantic models forming the wire contract of the Android TV Remote appliance."""
 
 from __future__ import annotations
 
