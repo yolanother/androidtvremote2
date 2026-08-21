@@ -62,6 +62,7 @@ export function useRemoteSocket(dispatch: React.Dispatch<StoreAction>): void {
       socketRef.current = socket
 
       socket.onopen = () => {
+        if (socketRef.current !== socket) return
         retriesRef.current = 0
         dispatch({ type: 'socket', status: 'open' })
         void loadCatalogs()
@@ -71,6 +72,7 @@ export function useRemoteSocket(dispatch: React.Dispatch<StoreAction>): void {
       }
 
       socket.onmessage = (message: MessageEvent) => {
+        if (socketRef.current !== socket) return
         let event: ServerEvent
         try {
           event = JSON.parse(message.data as string) as ServerEvent
@@ -82,6 +84,10 @@ export function useRemoteSocket(dispatch: React.Dispatch<StoreAction>): void {
 
       socket.onclose = () => {
         if (heartbeat) clearInterval(heartbeat)
+        // A socket abandoned by a previous mount still fires onclose. Without this guard
+        // it nulls socketRef and dispatches 'closed' over the CURRENT live connection,
+        // which leaves the UI stuck on "Connecting..." while a working socket is open.
+        if (socketRef.current !== socket) return
         socketRef.current = null
         if (closedRef.current) return
         dispatch({ type: 'socket', status: 'closed' })
@@ -91,7 +97,10 @@ export function useRemoteSocket(dispatch: React.Dispatch<StoreAction>): void {
       }
 
       // `onerror` always precedes `onclose`, which owns the retry, so this only reports.
-      socket.onerror = () => dispatch({ type: 'socket', status: 'closed' })
+      socket.onerror = () => {
+        if (socketRef.current !== socket) return
+        dispatch({ type: 'socket', status: 'closed' })
+      }
     }
 
     void connect()
@@ -100,8 +109,9 @@ export function useRemoteSocket(dispatch: React.Dispatch<StoreAction>): void {
       closedRef.current = true
       if (reconnectTimer) clearTimeout(reconnectTimer)
       if (heartbeat) clearInterval(heartbeat)
-      socketRef.current?.close()
+      const socket = socketRef.current
       socketRef.current = null
+      socket?.close()
     }
   }, [dispatch])
 }

@@ -186,6 +186,49 @@ you have never reached cannot be registered.
 If host mode is unavailable and you need discovery, run the appliance directly on the LAN
 host instead of in a container, or on a VM with a bridged (not NAT) adapter.
 
+## Opening the port to your network
+
+`network_mode: host` puts the appliance straight onto the host's network stack, but it
+does **not** open the host firewall. If the host runs ufw with the usual
+`DEFAULT_INPUT_POLICY="DROP"`, the appliance answers fine on the machine itself and is
+invisible to every other device on the LAN — which looks exactly like the container being
+broken.
+
+Check whether a firewall is in the way:
+
+```sh
+systemctl is-active ufw firewalld
+sudo ufw status verbose        # needs root
+```
+
+Open the one port the appliance listens on, scoped to your LAN rather than the world:
+
+```sh
+sudo ufw allow from 192.168.1.0/24 to any port 7433 proto tcp comment 'Android TV Remote'
+```
+
+Use `sudo ufw allow 7433/tcp` only if the host is not exposed to any untrusted network.
+With `REMOTE_API_TOKEN` unset, anything that can reach the port can power off your
+televisions, so prefer the subnet-scoped rule.
+
+Verify from another machine:
+
+```sh
+curl -fsS http://<appliance-host>:7433/healthz
+```
+
+### What does NOT need opening
+
+- **Ports 6466/6467** (the Android TV Remote protocol) are *outbound* connections from the
+  appliance to each television. An inbound DROP policy does not affect them.
+- **UDP 5353** (mDNS) replies arrive as responses to queries the appliance sent, so a
+  stateful firewall admits them as ESTABLISHED/RELATED traffic. If discovery finds nothing
+  while a manually added IP works, that is the thing to check.
+
+The web UI derives its API and WebSocket URLs from `window.location`, so once the port is
+reachable there is nothing to reconfigure — browse to `http://<appliance-host>:7433/` from
+any device and it works.
+
 ## Upgrading
 
 ```bash
