@@ -145,7 +145,13 @@ key.pem
 
 # Agent tooling scaffolding, synced by orch rather than authored here.
 .orchestrator/tasks/commitmsg.txt
+
 .orchestrator/tasks/epic-progress.md
 
 # Local Python virtualenv for running the server test suite.
 .venv/
+# Agent tooling synced by orch into the working tree; not project source.
+.claude/settings.json
+.claude/hookify.*.local.md
+.orchestrator/hooks.json
+.orchestrator/scripts/
