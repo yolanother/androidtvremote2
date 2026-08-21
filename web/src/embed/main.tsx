@@ -6,7 +6,8 @@
  * separate Vite entry from the SPA on purpose: a host page's iframe downloads only the
  * remote, with no router, app shell, or dashboard code. Parses the embed URL's query
  * string, applies the requested colour scheme to the document (following the host
- * device's `prefers-color-scheme` when `theme=auto`), and mounts EmbedRemote.
+ * device's `prefers-color-scheme` when `theme=auto`), marks the document when
+ * `bg=transparent` asked the frame not to paint a backdrop, and mounts EmbedRemote.
  */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -34,6 +35,9 @@ function applyTheme(theme: EmbedTheme): void {
 }
 
 const config = parseEmbedConfig(window.location.search)
+
+// CSS cannot read the query string, so the backdrop choice is stamped onto the document.
+if (config.transparent) document.documentElement.dataset.bg = 'transparent'
 
 applyTheme(config.theme)
 if (config.theme === 'auto') {

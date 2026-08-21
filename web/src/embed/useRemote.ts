@@ -5,10 +5,11 @@
  * Data layer for the embeddable Android TV remote. Exposes the `useRemote` hook, which
  * loads one registered device over `GET /api/devices/{id}`, keeps its DeviceState live by
  * subscribing to the `/api/ws` event stream (reconnecting with backoff when the appliance
- * restarts), and returns the command callbacks the remote's buttons fire: key presses,
- * volume actions and an idempotent power toggle. Command failures are decoded from the
- * contract's error envelope into a human-readable message rather than thrown, so a TV
- * that is off or unreachable degrades the frame to a status line instead of a blank page.
+ * restarts), falls back to polling `GET /api/devices/{id}/state` for as long as that
+ * socket is down, and returns the command callbacks the remote's buttons fire: key
+ * presses, volume actions and an idempotent power toggle. Command failures are decoded
+ * from the contract's error envelope into a human-readable message rather than thrown, so
+ * an unreachable TV degrades the frame to an actionable notice instead of a blank page.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -48,6 +49,9 @@ const RECONNECT_MIN_MS = 1_000
 
 /** Ceiling for the WebSocket reconnect backoff, in milliseconds. */
 const RECONNECT_MAX_MS = 15_000
+
+/** How often to poll `GET .../state` while the WebSocket is unavailable. */
+const POLL_MS = 5_000
 
 /**
  * Turn a failed response into a readable message using the contract's error envelope.
@@ -230,6 +234,27 @@ export function useRemote(config: EmbedConfig): Remote {
       socket?.close()
     }
   }, [deviceId, token])
+
+  // Polling is the fallback, not the norm: it runs only while the socket is down, and
+  // stops the moment the stream comes back.
+  useEffect(() => {
+    if (!deviceId || live) return
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const response = await request(`/api/devices/${deviceId}/state`)
+        if (cancelled || !response.ok) return
+        setState((await response.json()) as DeviceState)
+      } catch {
+        // The appliance is unreachable; the existing error message already says so.
+      }
+    }
+    const timer = setInterval(() => void poll(), POLL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [deviceId, live, request])
 
   const sendKey = useCallback((key: string) => command('/keys', { key }), [command])
 
