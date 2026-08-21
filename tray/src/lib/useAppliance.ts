@@ -230,22 +230,28 @@ export function useAppliance(): Appliance {
     [api, deviceId],
   )
 
-  // Per-device quick actions fired from the tray menu land here.
+  // Per-device quick actions fired from the tray menu land here. The listener is registered
+  // once and reads the latest client and device list through a ref: re-registering on every
+  // state change would leave a window in which a tray click is dropped.
+  const latest = useRef({ api, devices })
+  latest.current = { api, devices }
   useEffect(() => {
-    if (!isTauri() || !api) return
+    if (!isTauri()) return
     const unlisten = listen<TrayAction>('tray-action', (event) => {
       const { action, device_id } = event.payload
-      const target = devices.find((d) => d.id === device_id)
+      const client = latest.current.api
+      if (!client) return
+      const target = latest.current.devices.find((d) => d.id === device_id)
       const promise =
         action === 'power'
-          ? api.setPower(device_id, target?.state.is_on === true ? false : true)
-          : api.setVolume(device_id, { action: 'toggle_mute' })
+          ? client.setPower(device_id, target?.state.is_on !== true)
+          : client.setVolume(device_id, { action: 'toggle_mute' })
       void promise.catch((err: unknown) => setActionError(describe(err)))
     })
     return () => {
       void unlisten.then((off) => off())
     }
-  }, [api, devices])
+  }, [])
 
   const selectDevice = useCallback((next: string) => {
     setDeviceId(next)
