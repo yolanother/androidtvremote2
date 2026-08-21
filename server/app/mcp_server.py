@@ -16,7 +16,8 @@ import contextlib
 import functools
 import json
 import secrets
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs
 
 from mcp.server.mcpserver import MCPServer
@@ -25,6 +26,7 @@ from pydantic import BaseModel
 from starlette.applications import Starlette
 from starlette.routing import Mount, Route
 
+from . import __version__
 from .config import get_settings
 from .errors import RemoteError, Unauthorized
 
@@ -77,8 +79,6 @@ PAIRING_INSTRUCTIONS = (
     "give you. The code expires after about 120 seconds; if it does, call pair_device "
     "again to display a fresh one."
 )
-
-_T = TypeVar("_T")
 
 
 def _envelope(error: RemoteError) -> dict[str, Any]:
@@ -160,6 +160,7 @@ def build_mcp_server(manager: DeviceManager) -> MCPServer:
     """
     server: MCPServer = MCPServer(
         name=SERVER_NAME,
+        version=__version__,
         instructions=(
             "Control Android TV and Google TV devices on this local network. Start with "
             "list_devices to see what is already registered and connected. A device must "
@@ -172,7 +173,20 @@ def build_mcp_server(manager: DeviceManager) -> MCPServer:
         ),
     )
 
-    # -- registry ---------------------------------------------------------------
+    _register_registry_tools(server, manager)
+    _register_pairing_tools(server, manager)
+    _register_control_tools(server, manager)
+    _register_catalog_tools(server, manager)
+    _register_resources(server, manager)
+    return server
+
+
+def _register_registry_tools(server: MCPServer, manager: DeviceManager) -> None:
+    """Register the registry tools: listing, discovery, registration, renaming, removal.
+
+    :param server: The MCP server to register on.
+    :param manager: The device facade the tools delegate to.
+    """
 
     @server.tool()
     @_never_raises
@@ -263,7 +277,13 @@ def build_mcp_server(manager: DeviceManager) -> MCPServer:
         await manager.remove_device(device_id)
         return {"removed": True, "device_id": device_id}
 
-    # -- pairing ----------------------------------------------------------------
+
+def _register_pairing_tools(server: MCPServer, manager: DeviceManager) -> None:
+    """Register the two-step, human-in-the-loop pairing tools.
+
+    :param server: The MCP server to register on.
+    :param manager: The device facade the tools delegate to.
+    """
 
     @server.tool()
     @_never_raises
@@ -322,7 +342,13 @@ def build_mcp_server(manager: DeviceManager) -> MCPServer:
         device = await manager.unpair(device_id)
         return {"device": _dump(device)}
 
-    # -- state and control ------------------------------------------------------
+
+def _register_control_tools(server: MCPServer, manager: DeviceManager) -> None:
+    """Register the tools that read state from and send commands to a television.
+
+    :param server: The MCP server to register on.
+    :param manager: The device facade the tools delegate to.
+    """
 
     @server.tool()
     @_never_raises
@@ -476,7 +502,13 @@ def build_mcp_server(manager: DeviceManager) -> MCPServer:
         state = await manager.set_volume(device_id, action=action, level=level)
         return {"device_id": device_id, "state": _dump(state)}
 
-    # -- catalog ----------------------------------------------------------------
+
+def _register_catalog_tools(server: MCPServer, manager: DeviceManager) -> None:
+    """Register the key and app catalog tools.
+
+    :param server: The MCP server to register on.
+    :param manager: The device facade the tools delegate to.
+    """
 
     @server.tool()
     @_never_raises
@@ -512,7 +544,13 @@ def build_mcp_server(manager: DeviceManager) -> MCPServer:
         apps = manager.list_apps()
         return {"apps": _dump_all(apps), "count": len(apps)}
 
-    # -- resources ---------------------------------------------------------------
+
+def _register_resources(server: MCPServer, manager: DeviceManager) -> None:
+    """Register the four contract resources under the ``androidtv://`` scheme.
+
+    :param server: The MCP server to register on.
+    :param manager: The device facade the tools delegate to.
+    """
 
     def _resource(payload: Callable[[], Any]) -> str:
         """Serialise a resource body, reporting failures as an error envelope.
@@ -583,8 +621,6 @@ def build_mcp_server(manager: DeviceManager) -> MCPServer:
     async def apps_resource() -> str:
         """Serve ``androidtv://apps`` as a JSON ``AppDescriptor[]``."""
         return _resource(lambda: _dump_all(manager.list_apps()))
-
-    return server
 
 
 class _TokenAuthMiddleware:
@@ -726,9 +762,8 @@ def mount_mcp(
     @contextlib.asynccontextmanager
     async def _chained(app: Any) -> Any:
         """Run the MCP session manager for as long as the host application runs."""
-        async with mcp_app.router.lifespan_context(mcp_app):
-            async with host_lifespan(app):
-                yield
+        async with mcp_app.router.lifespan_context(mcp_app), host_lifespan(app):
+            yield
 
     host_app.router.lifespan_context = _chained
     return mcp_app

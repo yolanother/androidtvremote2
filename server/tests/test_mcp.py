@@ -9,6 +9,11 @@
 # instructions, key-sequence ordering, and bearer-token enforcement on the HTTP mount.
 """Test suite for the Android TV Remote MCP server."""
 
+# The ``app`` imports below are deliberately not at the top of the file: they need the
+# sys.path bootstrap first, so they carry flake8's E402 waiver. ruff does not enable E402,
+# so without this it would strip those waivers as unused and break the flake8 hook.
+# ruff: noqa: RUF100
+
 from __future__ import annotations
 
 import json
@@ -24,6 +29,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.errors import DeviceNotFound, InvalidPairingCode, RemoteError  # noqa: E402
+from app.mcp_server import (  # noqa: E402
+    CONTRACT_TOOLS,
+    build_mcp_app,
+    build_mcp_server,
+    mount_mcp,
+)
 from app.models import (  # noqa: E402
     AppDescriptor,
     Device,
@@ -32,14 +43,8 @@ from app.models import (  # noqa: E402
     KeyDescriptor,
     VolumeInfo,
 )
-from app.mcp_server import (  # noqa: E402
-    CONTRACT_TOOLS,
-    build_mcp_app,
-    build_mcp_server,
-    mount_mcp,
-)
 
-NOW = datetime(2026, 8, 21, 18, 4, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 21, 18, 4, tzinfo=timezone.utc)  # noqa: UP017 - mypy targets 3.10.
 DEVICE_ID = "aabbccddeeff"
 
 
