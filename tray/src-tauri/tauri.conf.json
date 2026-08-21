@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Android TV Remote",
+  "version": "0.1.0",
+  "identifier": "dev.yolan.androidtvremote.tray",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:7435",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "panel",
+        "title": "Android TV Remote",
+        "width": 340,
+        "height": 560,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": true,
+        "visibleOnAllWorkspaces": true,
+        "center": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost http: https: ws: wss:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "shortDescription": "Menubar and system-tray remote for Android TV",
+    "longDescription": "A tray-resident remote control for Android TV devices managed by the Android TV Remote appliance on your LAN.",
+    "category": "Utility",
+    "copyright": "Copyright (c) Yolan",
+    "licenseFile": "../../LICENSE",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+node_modules/
+dist/
+
+# The repository root ignores `lib/` and `dist/` for Python build artefacts; this project's
+# `src/lib/` is source and `src-tauri/gen/` is generated, so both rules are corrected here.
+!src/lib/
