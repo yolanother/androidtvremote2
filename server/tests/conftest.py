@@ -235,3 +235,39 @@ def no_legacy_seeds(tmp_path: Path) -> Path:
     :returns: A path guaranteed not to exist.
     """
     return tmp_path / "no-such-paired_tvs.json"
+
+
+@pytest.fixture
+def app_client(settings: Settings, no_legacy_seeds: Path) -> Any:
+    """Start the FastAPI app against the fake remote factory and yield a test client.
+
+    The app's lifespan runs, so the DeviceManager is started and stopped exactly as it is
+    in production; only the network is faked.
+
+    :param settings: Test settings pointed at a temporary data directory.
+    :param no_legacy_seeds: Path of a legacy seed file that does not exist.
+    :returns: A ``TestClient`` bound to the running app.
+    """
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    application = create_app(
+        settings=settings, remote_factory=FakeRemote, legacy_seed_path=no_legacy_seeds
+    )
+    with TestClient(application) as client:
+        yield client
+
+
+@pytest.fixture
+def paired_client(app_client: Any) -> Any:
+    """A test client with one device already registered and paired.
+
+    :param app_client: The running app's test client.
+    :returns: ``(client, device_id)``.
+    """
+    created = app_client.post("/api/devices", json={"host": "192.168.1.23"})
+    device_id = created.json()["id"]
+    app_client.post(f"/api/devices/{device_id}/pair")
+    app_client.post(f"/api/devices/{device_id}/pair/complete", json={"code": "123456"})
+    return app_client, device_id
