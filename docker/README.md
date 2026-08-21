@@ -20,14 +20,20 @@ the REST API and the MCP endpoint from the same origin on port **7433**.
 ```
 docker/Dockerfile
   stage `web`      node:22-alpine   -> npm ci && npm run build -> web/dist
-  stage `runtime`  python:3.12-slim -> pip install ./server, copy src/androidtvremote2,
-                                       copy web/dist, entrypoint.sh
+  stage `runtime`  python:3.12-slim -> pip install deps (cached layer), copy server/,
+                                       copy src/androidtvremote2, copy web/dist,
+                                       entrypoint.sh, drop to non-root uid 1000
 ```
 
 The image mirrors the git repository's layout at `/app`, so `web/dist`,
 `server/app/` and `src/androidtvremote2/` resolve to the same relative paths inside the
 container as they do in a developer checkout. `PYTHONPATH=/app/server:/app/src` puts those
 trees ahead of site-packages, which is what makes the dev stack's bind mounts hot-reload.
+
+Dependencies are installed from `server/pyproject.toml` against a stub package *before* the
+real source is copied, so editing server code does not invalidate the pip layer. There is
+no `requirements.txt`: the server's `pyproject.toml` is the single dependency source and
+cannot drift out of sync with itself.
 
 ### Why one container
 
@@ -134,29 +140,48 @@ Identical command surface on both platforms:
 
 ```bash
 scripts/dev-server.sh start           # production stack
-scripts/dev-server.sh --dev start     # hot-reloading dev stack
+scripts/dev-server.sh --dev start     # hot-reloading dev/bridge stack
 scripts/dev-server.sh --dev logs web  # just the Vite dev server
 scripts/dev-server.sh status
 ```
 
+### Verification gates
+
+`scripts/dev-build.sh` is the gate other workstreams' acceptance criteria call. Each
+subcommand exits non-zero on the first failure.
+
+| Command | Runs |
+|---|---|
+| `check` | `tsc -b` in `web/`, `compileall server/app`, server tests if present, `docker compose config` on both files |
+| `build` | `npm run build` in `web/` -> `web/dist` |
+| `container` | `docker compose build` |
+| `all` (default) | check, then build, then container |
+
 ## Development stack
 
-`docker-compose.dev.yml` runs two containers on the host network:
+`docker-compose.dev.yml` is both the hot-reload development stack **and** the fallback for
+any machine where `network_mode: host` is unavailable (Docker Desktop on macOS/Windows).
+It uses an ordinary **bridge** network with published ports, which means mDNS cannot reach
+it — `DISCOVERY_ENABLED` is forced to `false` and TVs are added by IP.
+
+It runs two containers:
 
 - **`api`** — the same image, `uvicorn --reload`, with `./server` and `./src` bind-mounted.
   Python edits reload in place.
 - **`web`** — `node:22-alpine` running the Vite dev server on `WEB_DEV_PORT` (7434) with
   `./web` bind-mounted. `node_modules` is a named volume so the container's Linux modules
   never shadow the host tree. Vite proxies `/api`, `/healthz` and the WebSocket upgrade to
-  the API container, so the SPA is same-origin in development exactly as in production.
+  the API container, so the SPA is same-origin in development exactly as in production. On
+  a bridge network the proxy target is the **service name** (`http://api:7433`), not
+  `127.0.0.1` — loopback there would resolve to the web container itself.
 
 Dev pairing state goes to `./data` (git-ignored), so no NFS mount is needed locally. It is
 still a real volume — dev pairings survive restarts too.
 
 ```bash
 scripts/dev-server.sh --dev start
-# API + built SPA : http://localhost:7433/
-# Vite dev UI     : http://localhost:7434/
+# API            : http://localhost:7433/
+# Vite dev UI    : http://localhost:7434/   <- use this one while developing
 ```
 
 Vite listens with `--host`, so the dev UI is reachable from a phone on the same LAN — the
@@ -203,13 +228,19 @@ If it is reachable beyond one, set both:
   `/healthz` and static assets stay unauthenticated.
 - `FRAME_ANCESTORS` — restrict from `*` to your dashboard's origin.
 
-The container runs as **root**. This is deliberate: `DATA_DIR` is typically an NFS export
-whose squash and ownership settings are not known at build time, and pinning an arbitrary
-UID is the classic way to make the volume unwritable — which is the exact failure this
-rebuild exists to eliminate. With `network_mode: host` the container already shares the
-host's network namespace, so a non-root UID would not buy meaningful isolation here. If
-your threat model needs it, add `user: "${PUID}:${PGID}"` to the compose service and
-`chown` the host data directory to match.
+The container runs as a **non-root** user (uid/gid 1000 by default, the first user on a
+typical single-user Linux host). Because `DATA_DIR` is usually an NFS export whose owner is
+not known at build time, that uid is overridable — set `PUID`/`PGID` in `.env` to whatever
+owns the host directory:
+
+```
+PUID=1000
+PGID=1000
+```
+
+Get this wrong and the entrypoint's write probe fails the container at boot with the uid it
+needs, rather than letting pairing data go somewhere ephemeral. Prefer changing `PUID`/
+`PGID` over loosening the export's permissions.
 
 Secrets never belong in `.env` for a Portainer deployment — set `REMOTE_API_TOKEN` in the
 Portainer stack's own environment instead.
