@@ -34,6 +34,8 @@ Studied via the Mobbin MCP tools. What was actually taken from each:
 | **Google Home** | [devices](https://mobbin.com/screens/9338c84f-8c3f-4256-bfb2-c7c31515df08) | Device tiles where the **tint encodes state** — an offline device is desaturated *and* carries a warning glyph *and* says "Offline". Three redundant channels, never colour alone. |
 | **Tesla** | [product switcher](https://mobbin.com/screens/89a757b5-c1b6-4e5a-afbd-8c0c4e34da0f) | The device switcher as a sheet that drops from the header title, with "+ Add" as the last row. |
 | **YouTube** | [Link with TV code](https://mobbin.com/screens/9c848e10-be78-4f44-9bee-f25aea637571) | The pairing dialog: one prominent bordered code field, a **numbered "how to get the code"** list right beneath it, and a CTA that stays disabled until the code is well-formed. |
+| **Apple TV** | [remote](https://mobbin.com/screens/aad496de-a296-423a-94e3-8847b224df4f) | The most radical version of "emptiness is the affordance": the *entire screen* is the swipe surface, with only three floating controls on it. Confirmed the decision to keep the touchpad visually bare — but see below for why it stays bounded here. |
+| **Sonos** | [now playing](https://mobbin.com/screens/031a1400-5d28-4126-9ef7-756abed9328a) | Device identity ("Bedroom") pinned at the **bottom centre**, in the thumb zone, not the header. Volume as an absolute **slider with a numeric readout**, not ± buttons. |
 
 ### What the references get right, and why
 
@@ -67,6 +69,25 @@ important layout decision here and it is copied directly.
 4. **Light mode is supported.** The reference remotes are dark-only. This one runs on a
    wall-mounted panel in a bright kitchen as readily as on a phone at night, so both
    themes are first-class, following `prefers-color-scheme` with a manual override.
+
+5. **The touchpad is bounded, unlike Apple TV's full-screen surface.** Apple can hand the
+   whole viewport to the gesture because its remote has almost nothing else on it. This
+   remote keeps a permanent deck — back, home, transport, volume, the surface tabs — below
+   the stage, and an unbounded swipe surface would swallow taps meant for those. So the pad
+   keeps SmartThings' explicit rounded rectangle: it gives up a little reachability to stay
+   unambiguous about where a gesture lands.
+
+6. **Volume stays ± and mute; no Sonos-style slider.** The contract does support an
+   absolute `{"level": N}`, and dragging beats tapping `+` fifteen times. It is not built,
+   for two reasons: the brief asks for "volume ±, mute", and the contract implements an
+   absolute level *by issuing the equivalent run of up/down steps* anyway, so a slider
+   would send a burst of key presses on every drag rather than one clean set. Worth
+   revisiting if the appliance ever gains a real absolute-volume path.
+
+7. **Device identity stays in the header, not Sonos' bottom bar.** Sonos is right that the
+   thumb zone is prime real estate — which is exactly why it goes to controls here. This
+   remote's four surfaces plus transport already fill it, and switching televisions is a
+   rare, deliberate act, unlike Sonos' constant room-hopping.
 
 ## Layout model
 
