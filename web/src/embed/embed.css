@@ -1,0 +1,226 @@
+/*
+ * Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
+ * repository root.
+ *
+ * Layout and control styling for the embeddable Android TV remote. Layered on top of the
+ * SPA's shared design tokens in src/index.css, it sizes the entire remote off the frame
+ * itself -- viewport-relative padding and gaps, proportional flex rows, and icons sized as
+ * a percentage of their button -- so the same markup fills a 240x320 panel iframe and a
+ * 420x640 one without breakpoints, media queries, clipping, or a scrollbar in either axis.
+ */
+
+/* An iframe is a fixed box, not a document that may grow: nothing here ever scrolls. */
+html,
+body,
+#embed-root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  /* The host page owns the surrounding chrome; the frame paints only the remote. */
+  background-color: var(--color-background);
+}
+
+.embed {
+  --gap: clamp(0.25rem, 2vmin, 0.6rem);
+  --pad: clamp(0.3rem, 2.5vmin, 0.75rem);
+
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+  padding: var(--pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  /* Keep the remote from stretching into a letterbox in a generously sized frame. */
+  max-width: 26rem;
+  max-height: 42rem;
+  margin-inline: auto;
+}
+
+/* ---- status strip ------------------------------------------------------- */
+
+.embed-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  min-height: 0;
+  flex: 0 0 auto;
+  font-size: clamp(0.62rem, 3.2vmin, 0.85rem);
+  line-height: 1.2;
+}
+
+.embed-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.embed-dot {
+  flex: 0 0 auto;
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 999px;
+  background-color: var(--color-offline);
+}
+
+.embed-dot[data-connection='connected'] {
+  background-color: var(--color-online);
+}
+
+.embed-dot[data-connection='connecting'] {
+  background-color: var(--color-pairing);
+}
+
+.embed-dot[data-connection='unreachable'],
+.embed-dot[data-connection='unpaired'] {
+  background-color: var(--color-destructive);
+}
+
+.embed-status {
+  flex: 0 0 auto;
+  color: var(--color-muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A failure never replaces the remote; it annotates it, so the buttons stay usable. */
+.embed-error {
+  flex: 0 0 auto;
+  font-size: clamp(0.58rem, 2.9vmin, 0.78rem);
+  line-height: 1.25;
+  color: var(--color-destructive);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* ---- control stack ------------------------------------------------------ */
+
+.embed-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* The D-pad gets three shares of the free height, each button row one. */
+.embed-pad-slot {
+  flex: 3 1 0;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.embed-row {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+}
+
+/* ---- D-pad -------------------------------------------------------------- */
+
+.embed-pad {
+  height: 100%;
+  aspect-ratio: 1;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  grid-template-areas:
+    '.    up    .'
+    'left ok  right'
+    '.    down  .';
+  gap: calc(var(--gap) * 0.6);
+  padding: calc(var(--gap) * 0.6);
+  border-radius: 999px;
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+}
+
+.embed-pad [data-area='up'] { grid-area: up; }
+.embed-pad [data-area='down'] { grid-area: down; }
+.embed-pad [data-area='left'] { grid-area: left; }
+.embed-pad [data-area='right'] { grid-area: right; }
+.embed-pad [data-area='ok'] { grid-area: ok; }
+
+.embed-pad .embed-key {
+  background-color: transparent;
+  border-color: transparent;
+  border-radius: 999px;
+}
+
+.embed-pad .embed-key[data-area='ok'] {
+  background-color: var(--color-secondary);
+  border-color: var(--color-border);
+  font-size: clamp(0.55rem, 3vmin, 0.8rem);
+  font-weight: 600;
+}
+
+/* ---- keys --------------------------------------------------------------- */
+
+.embed-key {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-card);
+  color: var(--color-card-foreground);
+  font: inherit;
+  cursor: pointer;
+  /* Held keys repeat; a selection highlight or long-press callout ruins that on touch. */
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 90ms ease-out, transform 90ms ease-out;
+}
+
+/* Icons are a share of their button, so they scale with the frame like everything else. */
+.embed-key svg {
+  width: 46%;
+  height: 46%;
+  max-width: 1.75rem;
+  max-height: 1.75rem;
+}
+
+.embed-key:hover:not(:disabled) {
+  background-color: var(--color-accent);
+}
+
+.embed-key:active:not(:disabled) {
+  background-color: var(--color-accent);
+  transform: scale(0.94);
+}
+
+.embed-key:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.embed-key[data-tone='power'][data-on='true'] {
+  color: var(--color-online);
+}
+
+.embed-key[data-tone='muted'] {
+  color: var(--color-destructive);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .embed-key {
+    transition: none;
+  }
+  .embed-key:active:not(:disabled) {
+    transform: none;
+  }
+}
