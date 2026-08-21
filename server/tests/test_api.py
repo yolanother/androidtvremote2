@@ -386,6 +386,50 @@ def test_the_spa_is_served_with_deep_link_fallback(tmp_path: Any, monkeypatch: A
         assert client.get("/healthz").json()["status"] == "ok"
 
 
+def test_the_embed_route_serves_its_own_entry_not_the_spa(
+    tmp_path: Any, monkeypatch: Any
+) -> None:
+    """/embed must serve embed.html, not fall through to the SPA's index.html.
+
+    The panel remote is a second Vite entry rather than a route inside the SPA. When the
+    catch-all answered /embed with index.html, a home panel silently received the entire
+    app -- chrome, navigation and all -- inside a 240px iframe, and nothing errored.
+    """
+    from fastapi.testclient import TestClient
+
+    from app import main
+
+    dist = tmp_path / "dist"
+    dist.mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>SPA</title>", encoding="utf-8")
+    (dist / "embed.html").write_text("<!doctype html><title>Remote</title>", encoding="utf-8")
+    monkeypatch.setattr(main, "SPA_DIR", dist)
+
+    with TestClient(main.create_app()) as client:
+        assert "Remote" in client.get("/embed").text
+        assert "Remote" in client.get("/embed?device=aabbccddeeff&layout=compact").text
+        # Everything else still reaches the SPA.
+        assert "SPA" in client.get("/").text
+        assert "SPA" in client.get("/devices").text
+
+
+def test_the_embed_route_falls_back_when_that_entry_was_not_built(
+    tmp_path: Any, monkeypatch: Any
+) -> None:
+    """A build without the embed entry must still serve something rather than 404."""
+    from fastapi.testclient import TestClient
+
+    from app import main
+
+    dist = tmp_path / "dist"
+    dist.mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>SPA</title>", encoding="utf-8")
+    monkeypatch.setattr(main, "SPA_DIR", dist)
+
+    with TestClient(main.create_app()) as client:
+        assert "SPA" in client.get("/embed").text
+
+
 def test_the_server_starts_without_a_built_spa(app_client: Any) -> None:
     """The dev workflow runs Vite separately, so a missing web/dist must not break startup."""
     assert app_client.get("/healthz").status_code == 200

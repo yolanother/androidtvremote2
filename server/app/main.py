@@ -229,16 +229,24 @@ def _mount_spa(app: FastAPI) -> None:
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=assets), name="assets")
 
+    # The embeddable panel remote is a SECOND Vite entry, not a route inside the SPA.
+    # Without this the catch-all below answers /embed with index.html and a home panel
+    # silently gets the full app -- chrome, nav and all -- squeezed into a 240px iframe.
+    embed = SPA_DIR / "embed.html"
+
     @app.get("/{path:path}", include_in_schema=False)
     async def spa(path: str) -> FileResponse:
-        """Serve a static file when one matches, otherwise the SPA entry point.
+        """Serve a static file when one matches, otherwise the right HTML entry point.
 
         :param path: Requested path below the site root.
-        :returns: The matching file, or ``index.html`` for a client-side route.
+        :returns: The matching static file, ``embed.html`` for the embed route, or
+            ``index.html`` for any other client-side route.
         """
         candidate = (SPA_DIR / path).resolve()
         if path and SPA_DIR in candidate.parents and candidate.is_file():
             return FileResponse(candidate)
+        if embed.is_file() and (path == "embed" or path.startswith("embed/")):
+            return FileResponse(embed)
         return FileResponse(index)
 
 
