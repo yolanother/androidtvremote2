@@ -34,27 +34,36 @@ LIVING_ROOM = "192.168.1.23"
 BEDROOM = "192.168.1.19"
 
 
-async def _manager(settings: Settings, fake_remote: Any) -> DeviceManager:
+async def _manager(settings: Settings, fake_remote: Any, seeds: Path | None = None) -> DeviceManager:
     """Start a DeviceManager wired to the fake remote factory.
 
     :param settings: Test settings pointed at a temporary data directory.
     :param fake_remote: The FakeRemote class used as the remote factory.
+    :param seeds: Legacy ``paired_tvs.json`` path; defaults to one that does not exist so
+        tests never depend on the repository's real copy.
     :returns: A started manager. The caller is responsible for stopping it.
     """
-    manager = DeviceManager(settings, remote_factory=fake_remote)
+    manager = DeviceManager(
+        settings,
+        remote_factory=fake_remote,
+        legacy_seed_path=seeds or settings.data_dir / "no-such-paired_tvs.json",
+    )
     await manager.start()
     return manager
 
 
-async def _registered_and_paired(settings: Settings, fake_remote: Any, host: str = LIVING_ROOM) -> Any:
+async def _registered_and_paired(
+    settings: Settings, fake_remote: Any, host: str = LIVING_ROOM, seeds: Path | None = None
+) -> Any:
     """Start a manager with one device registered and paired.
 
     :param settings: Test settings.
     :param fake_remote: The FakeRemote class.
     :param host: Address to register the device at.
+    :param seeds: Legacy seed file path, if the test cares.
     :returns: ``(manager, device)``.
     """
-    manager = await _manager(settings, fake_remote)
+    manager = await _manager(settings, fake_remote, seeds)
     device = await manager.add_device(host)
     await manager.start_pairing(device.id)
     device = await manager.finish_pairing(device.id, "123456")
@@ -188,8 +197,7 @@ async def test_registration_survives_a_manager_restart(
     manager, device = await _registered_and_paired(settings, fake_remote)
     await manager.stop()
 
-    restarted = DeviceManager(settings, remote_factory=fake_remote)
-    await restarted.start()
+    restarted = await _manager(settings, fake_remote)
     try:
         devices = restarted.list_devices()
         assert [d.id for d in devices] == [device.id]
@@ -227,8 +235,7 @@ async def test_restart_reconnects_every_paired_device(
     await manager.stop()
     fake_remote.instances = []
 
-    restarted = DeviceManager(settings, remote_factory=fake_remote)
-    await restarted.start()
+    restarted = await _manager(settings, fake_remote)
     try:
         connected = [r for r in fake_remote.instances if r.connected]
         assert len(connected) == 1
@@ -547,8 +554,7 @@ async def test_a_device_that_never_connected_reports_unreachable(
     await manager.stop()
     fake_remote.connect_error = CannotConnect
 
-    restarted = DeviceManager(settings, remote_factory=fake_remote)
-    await restarted.start()
+    restarted = await _manager(settings, fake_remote)
     try:
         state = restarted.get_state(device.id)
         assert state.connection == "unreachable"

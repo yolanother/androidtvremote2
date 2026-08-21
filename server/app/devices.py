@@ -884,10 +884,28 @@ class DeviceManager:
         self.event_bus.publish({"type": "discovery", "devices": _dump_all(self.list_discovered())})
 
         for record in self._records.values():
+            if record.mdns_name is None and (
+                record.host in entry.addresses or record.host == entry.host
+            ):
+                # First sighting of a TV that was registered by address. Binding the
+                # service name now is what lets a later address change be recognised as
+                # THIS device moving rather than as a new TV appearing.
+                self._spawn(self._bind_mdns_name(record.id, entry.mdns_name))
+                break
             if record.mdns_name == entry.mdns_name and record.host != entry.host:
                 LOGGER.info("%s moved from %s to %s", record.id, record.host, entry.host)
                 self._spawn(self.update_device(record.id, host=entry.host))
                 break
+
+    async def _bind_mdns_name(self, device_id: str, mdns_name: str) -> None:
+        """Remember which mDNS service belongs to a device registered by address.
+
+        :param device_id: MAC-derived device identifier.
+        :param mdns_name: Full service instance name the device advertises.
+        """
+        record = await asyncio.to_thread(self._registry.update, device_id, mdns_name=mdns_name)
+        self._records[device_id] = record
+        self.event_bus.publish({"type": "device.updated", "device": _dump(self._to_device(record))})
 
     def _refresh_discovery_registration(self) -> None:
         """Re-evaluate which discovery entries correspond to a registered device.

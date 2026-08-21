@@ -222,3 +222,16 @@ def settings(tmp_path: Path) -> Settings:
         remote_api_token=None,
         _env_file=None,
     )
+
+
+@pytest.fixture
+def no_legacy_seeds(tmp_path: Path) -> Path:
+    """Path of a legacy ``paired_tvs.json`` that does not exist.
+
+    Tests pass this to DeviceManager so they do not depend on the repository's real
+    ``src/api/paired_tvs.json``, which the integrator deletes at final merge.
+
+    :param tmp_path: pytest-supplied unique temporary directory.
+    :returns: A path guaranteed not to exist.
+    """
+    return tmp_path / "no-such-paired_tvs.json"
