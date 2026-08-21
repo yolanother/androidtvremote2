@@ -33,6 +33,7 @@ const ERROR_MESSAGES: Record<ApiErrorCode, string> = {
   invalid_pairing_code: 'That code was not accepted. Check the TV and try again.',
   unreachable: 'The TV did not answer. Check that it is on and on the same network.',
   invalid_key: 'That key is not supported by this TV.',
+  invalid_request: 'The appliance rejected that request as malformed.',
   unauthorized: 'This appliance requires an access token. Add it in Settings.',
   internal_error: 'The appliance hit an unexpected error.',
 }
