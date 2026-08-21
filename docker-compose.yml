@@ -18,9 +18,15 @@ services:
     container_name: androidtv-remote
     restart: unless-stopped
 
-    # Required for mDNS discovery of `_androidtvremote2._tcp.local.` devices, and it also
-    # removes the need for a published port: PORT alone decides where we listen.
-    # Linux only. On Docker Desktop set DISCOVERY_ENABLED=false and add TVs by IP.
+    # DO NOT "clean this up" to a bridge network with a ports: mapping.
+    # mDNS/DNS-SD (`_androidtvremote2._tcp.local.`) is link-local multicast and CANNOT
+    # cross a Docker bridge. On a bridge the discovery browser returns an empty list
+    # forever -- no error, no log line -- which is exactly what the old build did. Host
+    # mode is the only reason discovery works at all.
+    # It also removes the need for a published port: PORT alone decides where we listen
+    # (network_mode: host and ports: are mutually exclusive).
+    # Linux only. On Docker Desktop use docker-compose.dev.yml, which is the bridge
+    # variant with DISCOVERY_ENABLED=false and devices added by IP.
     network_mode: host
 
     environment:
