@@ -1,0 +1,107 @@
+# Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
+# repository root.
+#
+# Continuous integration for the Android TV Remote appliance container. Builds the
+# single multi-stage image on every push and pull request, then runs
+# scripts/container-start.test.sh, which starts the production compose stack and proves
+# that pairing state written into the mounted DATA_DIR volume survives destroying and
+# recreating the container. On pushes to main it additionally publishes the image to the
+# GitHub Container Registry. This workflow is the gate that stops the "pairing lost on
+# restart" regression from ever shipping again.
+
+name: Docker CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: docker-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-verify:
+    name: Build image and verify pairing durability
+    # The stack uses network_mode: host, which is Linux-only.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Lint shell scripts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck
+          shellcheck scripts/dev-server.sh \
+                     scripts/container-start.test.sh \
+                     scripts/deploy-portainer.sh \
+                     docker/entrypoint.sh
+
+      - name: Validate compose files
+        run: |
+          cp .env.example .env
+          docker compose -f docker-compose.yml config > /dev/null
+          docker compose -f docker-compose.dev.yml config > /dev/null
+
+      - name: Build the appliance image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          tags: androidtv-remote:${{ github.sha }}
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The real gate: start the stack and prove DATA_DIR survives recreation.
+      - name: Container startup and pairing-durability test
+        run: ./scripts/container-start.test.sh
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker compose -p androidtv-remote-smoke -f docker-compose.yml logs || true
+
+  publish:
+    name: Publish image to GHCR
+    needs: build-and-verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

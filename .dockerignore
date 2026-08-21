@@ -1,0 +1,58 @@
+# Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
+# repository root.
+#
+# Build-context exclusion list for the Android TV Remote appliance image. Keeps the
+# Docker build context limited to the sources the image actually needs (server/, web/,
+# src/androidtvremote2/, docker/) so that host-side node_modules, git metadata, parallel
+# worktrees, local build output, and — critically — any locally generated pairing
+# certificates or SQLite registry are never baked into an image layer.
+
+# VCS and agent scaffolding
+.git
+.github
+.gitignore
+.claude
+.codex
+.orchestrator
+.vscode
+*.pre-sync
+AGENTS.md
+CLAUDE.md
+.copilot-instructions.md
+.mcp.json
+
+# Dependencies and build output (rebuilt inside the image)
+node_modules
+**/node_modules
+web/dist
+tray/target
+tray/src-tauri/target
+dist
+build
+*.egg-info
+__pycache__
+**/__pycache__
+*.py[cod]
+
+# Local caches and tooling state
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+venv
+.pre-commit-config.yaml
+
+# Runtime data — pairing certs and the device registry must NEVER enter an image
+.env
+data
+/data
+*.db
+*.pem
+
+# Docs and legacy trees not needed at runtime
+docs
+tests
+frontend
+react
+LastChange.md
+docker-compose*.yml
