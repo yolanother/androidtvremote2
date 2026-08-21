@@ -42,7 +42,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends shellcheck
-          shellcheck scripts/dev-server.sh \
+          shellcheck scripts/dev-build.sh \
+                     scripts/dev-server.sh \
                      scripts/container-start.test.sh \
                      scripts/deploy-portainer.sh \
                      docker/entrypoint.sh
