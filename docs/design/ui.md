@@ -57,7 +57,7 @@ important layout decision here and it is copied directly.
 
 2. **Circular ring D-pad, not Roku's cross.** On a 390px viewport the ring reads as one
    moulded physical part, and the wedge hit regions extend all the way to the diagonals —
-   every arrow gets a ~120° sector instead of a rectangle with dead corners. The cross
+   every arrow gets a full 90° sector instead of a rectangle with dead corners. The cross
    shape wastes its corners.
 
 3. **No web font.** The design-system tool recommended Plus Jakarta Sans. Rejected: this
@@ -102,13 +102,20 @@ the *order of operations* never changes, so muscle memory transfers.
 
 ### D-pad
 
-- Outer ring **280px**, centre OK **120px**. Each arrow wedge is a 90° sector clipped from
-  the ring, so its smallest dimension is ~80px — comfortably past the 44px floor, and the
-  diagonal boundaries mean a sloppy thumb still lands on *something* sensible.
+- Outer ring `min(84vw, 19rem)` — **304px** on a 390px phone — with the centre OK at 38%
+  of that, about **115px**. Each arrow wedge is a 90° sector clipped from the ring, so its
+  smallest dimension is ~95px: comfortably past the 44px floor, and the diagonal
+  boundaries mean a sloppy thumb still lands on *something* sensible.
 - Built as four real `<button>` elements clipped with `clip-path: polygon(...)` plus a
   fifth centred button. **Not** a div with an `onClick` and pointer maths: keyboard focus,
   `aria-label`, and screen-reader semantics all come free, and a wrong tap is impossible
   to misattribute.
+- **Focus fills the whole wedge** rather than drawing a ring around it. Both `outline` and
+  an inset `box-shadow` are painted against the element's *border box* and then cut away by
+  the `clip-path`, so a ring survives only as a sliver along the container's top edge —
+  verified in the browser, not assumed. A focused wedge therefore takes the ring colour
+  outright, with its chevron inverted. Nothing can clip that away, and it doubles as a
+  demonstration of where each wedge's hit region actually reaches.
 - **Press-and-hold repeats**: 400ms delay, then a key every 120ms. That is the interval a
   list scroll feels continuous at without overshooting by three rows when you let go.
 - **Haptics**: `navigator.vibrate(8)` per emitted key where supported. Eight milliseconds

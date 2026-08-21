@@ -293,6 +293,14 @@ function installMockFetch(): void {
   const original = window.fetch.bind(window)
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url
+    if (path === '/healthz') {
+      return json({
+        status: 'ok',
+        devices: devices.length,
+        connected: devices.filter((d) => d.state.connection === 'connected').length,
+        version: '0.0.0-mock',
+      })
+    }
     if (path.startsWith('/api')) {
       // A little latency, so loading and optimistic paths are actually exercised.
       await new Promise((resolve) => setTimeout(resolve, 90))

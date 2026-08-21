@@ -116,7 +116,7 @@ export function Touchpad({ control }: { control: RemoteControl }) {
         className={cn(
           'relative grid w-full max-w-sm place-items-center rounded-3xl border',
           'h-[min(52vh,22rem)] cursor-grab transition-colors duration-150',
-          active ? 'bg-accent cursor-grabbing' : 'bg-card',
+          active ? 'bg-accent cursor-grabbing' : 'bg-secondary',
           disabled && 'pointer-events-none opacity-40',
         )}
       >

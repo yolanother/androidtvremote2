@@ -41,7 +41,7 @@ export function RemoteHeader({
   const appName = app ? (state.apps.find((a) => a.package === app)?.name ?? app) : null
 
   return (
-    <header className="flex items-center gap-2 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
+    <header className="flex items-center gap-2 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 lg:px-0 lg:pt-0">
       <button
         type="button"
         onClick={() => setSwitcherOpen(true)}

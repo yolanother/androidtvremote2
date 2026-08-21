@@ -61,7 +61,10 @@ export function RemotePage() {
   const unpaired = device.state.connection === 'unpaired' || !device.paired
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
+    // On a phone the remote is the whole screen. On a large display it becomes a remote
+    // *body* — a bounded, raised panel — rather than controls floating in a white field.
+    <div className="flex h-dvh flex-col overflow-hidden lg:items-center lg:justify-center lg:p-8">
+      <div className="flex min-h-0 w-full flex-1 flex-col lg:h-auto lg:max-w-3xl lg:flex-none lg:rounded-3xl lg:border lg:bg-card lg:p-6 lg:shadow-2xl">
       <RemoteHeader
         device={device}
         onSelect={(id) => void navigate(`/d/${id}`)}
@@ -80,7 +83,7 @@ export function RemotePage() {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col items-center gap-4 lg:flex-row lg:items-center lg:justify-center lg:gap-12">
+      <div className="flex min-h-0 flex-1 flex-col items-center gap-4 lg:flex-row lg:items-center lg:justify-center lg:gap-10">
         {/* Stage. Only the app grid and text history scroll; the frame itself never does. */}
         <main className="flex min-h-0 w-full flex-1 items-center justify-center overflow-y-auto overscroll-contain px-4 lg:max-w-xl">
           {unpaired ? (
@@ -112,6 +115,8 @@ export function RemotePage() {
             />
           </div>
         </div>
+      </div>
+
       </div>
 
       {pairingOpen && <PairingDialog device={device} onClose={() => setPairingOpen(false)} />}

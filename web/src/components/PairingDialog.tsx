@@ -150,7 +150,6 @@ export function PairingDialog({ device, onClose }: { device: Device; onClose: ()
           spellCheck={false}
           maxLength={CODE_LENGTH}
           invalid={failed}
-          placeholder="Code from the TV"
           onChange={(event) =>
             setCode(event.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, CODE_LENGTH))
           }

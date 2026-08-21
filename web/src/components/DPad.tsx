@@ -6,8 +6,8 @@
  * directional wedges and a centre OK key as real `<button>` elements — the wedges are
  * clipped to 90-degree sectors so every direction owns a hit region reaching the diagonals
  * — and wires each to press-and-hold repeat with haptic ticks. Because the clip path also
- * clips a focus outline, focus is shown with an inset ring that follows the wedge shape,
- * keeping the surface fully keyboard-operable.
+ * clips both an outline and an inset ring, a focused wedge is filled entirely instead,
+ * keeping the surface unmistakably and fully keyboard-operable.
  */
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react'
 
@@ -66,7 +66,7 @@ export function DPad({ control }: { control: RemoteControl }) {
     <div
       data-remote-surface
       className={cn(
-        'relative aspect-square w-[min(78vw,17rem)] shrink-0 rounded-full',
+        'relative aspect-square w-[min(84vw,19rem)] shrink-0 rounded-full',
         'bg-card border shadow-lg',
         disabled && 'pointer-events-none opacity-40',
       )}
@@ -85,14 +85,16 @@ export function DPad({ control }: { control: RemoteControl }) {
             {...hold(DIRECTION_KEYS[direction])}
             className={cn(
               'absolute inset-0 flex cursor-pointer transition-colors duration-150',
-              'bg-[var(--key)] hover:bg-[var(--key-hover)] active:bg-[var(--key-active)]',
-              // A clipped element cannot show an outline, so focus is an inset ring that
-              // takes the wedge's own shape.
-              'outline-none focus-visible:shadow-[inset_0_0_0_3px_var(--color-ring)]',
+              'text-muted-foreground bg-[var(--key)]',
+              'hover:bg-[var(--key-hover)] active:bg-[var(--key-active)]',
+              // Neither an outline nor an inset ring survives `clip-path` — both are drawn
+              // against the border box and then cut away. Focus therefore fills the whole
+              // wedge instead, which is unmistakable and cannot be clipped off.
+              'outline-none focus-visible:bg-ring focus-visible:text-background',
               place,
             )}
           >
-            <Icon aria-hidden className="text-muted-foreground size-9" strokeWidth={2.25} />
+            <Icon aria-hidden className="size-9" strokeWidth={2.25} />
           </button>
         ))}
       </div>
