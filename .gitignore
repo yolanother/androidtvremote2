@@ -145,3 +145,4 @@ key.pem
 
 # Agent tooling scaffolding, synced by orch rather than authored here.
 .orchestrator/tasks/commitmsg.txt
+.orchestrator/tasks/epic-progress.md
