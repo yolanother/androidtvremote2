@@ -171,7 +171,7 @@ export function EmbedRemote({ config }: EmbedRemoteProps) {
   return (
     <div className="embed" data-remote-surface="" data-layout={config.layout}>
       {config.header && (
-        <header className="embed-header">
+        <header className="embed-header" data-live={live ? 'true' : 'false'}>
           <span
             className="embed-dot"
             data-connection={connection}
@@ -179,7 +179,7 @@ export function EmbedRemote({ config }: EmbedRemoteProps) {
             aria-label={CONNECTION_LABEL[connection]}
           />
           <span className="embed-name">
-            {device?.name ?? (config.deviceId ? 'Loading…' : 'No device')}
+            {device?.name ?? (!config.deviceId ? 'No device' : loaded ? 'Unavailable' : 'Loading…')}
           </span>
           <span className="embed-status">
             {live ? CONNECTION_LABEL[connection] : loaded ? 'Offline' : '…'}

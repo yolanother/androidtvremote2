@@ -7,7 +7,9 @@
  * expresses every dimension in container-query units, so the same markup fills a 240x320
  * panel iframe and a 420x640 one without clipping or a scrollbar in either axis. Also
  * carries the D-pad, touchpad, key, status-strip and degraded-notice styling, and the
- * `bg=transparent` rule that lets the remote composite over a themed host panel.
+ * `bg=transparent` rule that lets the remote composite over a themed host panel. Note
+ * that transparency also depends on the document's `color-scheme` staying `normal`, which
+ * main.tsx handles: a concrete scheme makes the browser paint an opaque frame canvas.
  */
 
 /* An iframe is a fixed box, not a document that may grow: nothing here ever scrolls. */
@@ -106,6 +108,15 @@ html[data-bg='transparent'] body {
   color: var(--color-muted-foreground);
 }
 
+/*
+ * While the live stream is down the dot still shows the last known connection, but dimmed
+ * — otherwise a bright green dot next to "Offline" reads as a contradiction rather than as
+ * two different facts.
+ */
+.embed-header[data-live='false'] .embed-dot {
+  opacity: 0.35;
+}
+
 /* A transient command failure annotates the remote; it never replaces it. */
 .embed-error {
   flex: 0 0 auto;
@@ -180,6 +191,9 @@ html[data-bg='transparent'] body {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Centred so a key-only embed (?keys=volume) sits as a strip in the middle of a tall
+     frame instead of being stretched across it. */
+  justify-content: center;
   gap: var(--gap);
 }
 
@@ -194,6 +208,9 @@ html[data-bg='transparent'] body {
 .embed-row {
   flex: 1 1 0;
   min-height: 0;
+  /* A key is a target, not a panel: past this height extra space goes to the D-pad, or
+     stays as margin when there is no D-pad. */
+  max-height: 7rem;
   display: grid;
   gap: var(--gap);
 }
@@ -321,10 +338,6 @@ html[data-bg='transparent'] body {
  */
 @container remote (max-height: 360px) {
   .embed-status {
-    display: none;
-  }
-
-  .embed-touchpad-hint {
     display: none;
   }
 }
