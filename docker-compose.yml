@@ -1,45 +1,67 @@
-version: '3.8'
+# Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
+# repository root.
+#
+# Production compose stack for the Android TV Remote appliance. Runs the single appliance
+# image on the host network so that mDNS/DNS-SD discovery works (link-local multicast does
+# not cross a Docker bridge) and bind-mounts the NFS-backed HOST_DATA_DIR onto DATA_DIR so
+# the SQLite device registry and the per-device pairing certificates survive container
+# restarts, rebuilds and image upgrades. The absence of that mount in the previous build
+# is the reason pairing was lost on every restart. Every setting is read from .env; see
+# .env.example for the full list.
 
 services:
-  # Backend service
-  backend:
+  androidtv-remote:
     build:
       context: .
-      dockerfile: docker/backend.Dockerfile
-    container_name: androidtv-remote-backend
+      dockerfile: docker/Dockerfile
+    image: ${IMAGE_NAME:-androidtv-remote}:${IMAGE_TAG:-latest}
+    container_name: androidtv-remote
     restart: unless-stopped
-    ports:
-      - "7432:7432"
+
+    # DO NOT "clean this up" to a bridge network with a ports: mapping.
+    # mDNS/DNS-SD (`_androidtvremote2._tcp.local.`) is link-local multicast and CANNOT
+    # cross a Docker bridge. On a bridge the discovery browser returns an empty list
+    # forever -- no error, no log line -- which is exactly what the old build did. Host
+    # mode is the only reason discovery works at all.
+    # It also removes the need for a published port: PORT alone decides where we listen
+    # (network_mode: host and ports: are mutually exclusive).
+    # Linux only. On Docker Desktop use docker-compose.dev.yml, which is the bridge
+    # variant with DISCOVERY_ENABLED=false and devices added by IP.
+    network_mode: host
+
     environment:
-      - FLASK_ENV=production
-      - FLASK_APP=src/app.py
-      - BACKEND_PORT=${BACKEND_PORT:-7432}
-      - BACKEND_URL=${BACKEND_URL:-http://localhost:7432}
-    networks:
-      - androidtv-network
+      # Container-side data root. Keep this aligned with the mount target below.
+      DATA_DIR: /volumes/androidtvremote
+      PORT: ${PORT:-7433}
+      HOST: ${HOST:-0.0.0.0}
+      REMOTE_API_TOKEN: ${REMOTE_API_TOKEN:-}
+      CLIENT_NAME: ${CLIENT_NAME:-Android TV Remote}
+      DISCOVERY_ENABLED: ${DISCOVERY_ENABLED:-true}
+      DISCOVERY_INTERVAL: ${DISCOVERY_INTERVAL:-60}
+      FRAME_ANCESTORS: ${FRAME_ANCESTORS:-*}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
 
-  # Frontend service
-  frontend:
-    build:
-      context: .
-      dockerfile: docker/frontend.Dockerfile
-    container_name: androidtv-remote-frontend
-    restart: unless-stopped
-    ports:
-      - "7433:80"
-    depends_on:
-      - backend
-    environment:
-      - REACT_APP_BACKEND_URL=${REACT_APP_BACKEND_URL:-http://localhost:7432}
-    networks:
-      - androidtv-network
+    # Runs as a non-root uid. It MUST be able to write HOST_DATA_DIR: if the host
+    # directory (or NFS export) is owned by a different uid, set PUID/PGID in .env to
+    # match rather than loosening the directory's permissions. The entrypoint's write
+    # probe turns any mismatch into a loud boot failure instead of lost pairings.
+    user: "${PUID:-1000}:${PGID:-1000}"
 
-# Define a network for the services
-networks:
-  androidtv-network:
-    driver: bridge
+    volumes:
+      # THE durability fix. Host path is configurable; the container path is fixed and
+      # must match DATA_DIR above. Without this line every pairing is lost on restart.
+      - ${HOST_DATA_DIR:-/volumes/androidtvremote}:/volumes/androidtvremote
 
-# Define volumes for persistent data
-volumes:
-  paired_tvs_data:
-    driver: local
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${PORT:-7433}/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

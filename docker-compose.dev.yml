@@ -1,0 +1,105 @@
+# Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
+# repository root.
+#
+# Development compose stack for the Android TV Remote appliance, and the fallback for any
+# machine where `network_mode: host` is unavailable (Docker Desktop on macOS/Windows).
+# Unlike the production stack this one uses an ordinary BRIDGE network with published
+# ports, which means link-local mDNS multicast cannot reach the containers — so
+# DISCOVERY_ENABLED is false here and devices are added by IP instead of being discovered.
+# It runs two hot-reloading services: `api` bind-mounts server/ and src/ and runs
+# uvicorn --reload, while `web` bind-mounts web/ and runs the Vite dev server, whose proxy
+# forwards /api, /healthz and the WebSocket upgrade to the api service so the SPA is
+# same-origin in development exactly as it is in the shipped container. Pairing data goes
+# to ./data instead of /volumes so no NFS mount is needed locally.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ${IMAGE_NAME:-androidtv-remote}:dev
+    container_name: androidtv-remote-api-dev
+    restart: unless-stopped
+
+    # Bridge networking: no host mode, so ports must be published explicitly.
+    ports:
+      - "${PORT:-7433}:${PORT:-7433}"
+    networks:
+      - androidtv-dev
+
+    # Must be able to write the bind-mounted ./data directory. Defaults to the invoking
+    # user so a plain `docker compose up` works on a single-user Linux host.
+    user: "${PUID:-1000}:${PGID:-1000}"
+
+    # PYTHONPATH puts the bind-mounted trees ahead of the copies installed into
+    # site-packages at build time, so host edits take effect on reload.
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "${PORT:-7433}"
+      - --log-level
+      - ${LOG_LEVEL:-debug}
+      - --reload
+      - --reload-dir
+      - /app/server
+
+    environment:
+      DATA_DIR: /volumes/androidtvremote
+      PORT: ${PORT:-7433}
+      HOST: "0.0.0.0"
+      REMOTE_API_TOKEN: ${REMOTE_API_TOKEN:-}
+      CLIENT_NAME: ${CLIENT_NAME:-Android TV Remote (dev)}
+      # Forced off: mDNS is link-local multicast and cannot cross a Docker bridge, so the
+      # browser would return an empty list forever. Add devices by IP in this stack.
+      DISCOVERY_ENABLED: "false"
+      DISCOVERY_INTERVAL: ${DISCOVERY_INTERVAL:-60}
+      FRAME_ANCESTORS: ${FRAME_ANCESTORS:-*}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+
+    volumes:
+      - ./server:/app/server
+      - ./src:/app/src
+      # Dev pairing state lives in the git-ignored working tree, so no NFS mount is needed
+      # locally. It is still a real volume: dev pairings survive restarts too.
+      - ./data:/volumes/androidtvremote
+
+  web:
+    image: node:22-alpine
+    container_name: androidtv-remote-web-dev
+    restart: unless-stopped
+    working_dir: /app/web
+    depends_on:
+      - api
+
+    ports:
+      - "${WEB_DEV_PORT:-7434}:${WEB_DEV_PORT:-7434}"
+    networks:
+      - androidtv-dev
+
+    # --host makes Vite listen on all interfaces so the published port is reachable from
+    # the host, and from a phone on the same LAN — the only way to test touch surfaces.
+    command:
+      - sh
+      - -c
+      - npm install && npm run dev -- --host --port ${WEB_DEV_PORT:-7434}
+
+    environment:
+      # Consumed by web/vite.config.ts. On a bridge network the API is reached by service
+      # name, not 127.0.0.1 — that loopback would resolve to the web container itself.
+      VITE_API_TARGET: http://api:${PORT:-7433}
+
+    volumes:
+      - ./web:/app/web
+      # Named volume keeps the container's Linux node_modules out of the host tree.
+      - web_node_modules:/app/web/node_modules
+
+networks:
+  androidtv-dev:
+    driver: bridge
+
+volumes:
+  web_node_modules:
