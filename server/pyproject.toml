@@ -1,0 +1,32 @@
+[project]
+name = "androidtv-remote-server"
+version = "1.0.0"
+description = "FastAPI + MCP appliance for pairing with and controlling Android TV devices on a local network"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "websockets>=13",
+    "zeroconf>=0.132",
+    "mcp>=1.2",
+    "aiofiles>=0.8",
+    "cryptography>=3",
+    "protobuf>=4.21",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 110

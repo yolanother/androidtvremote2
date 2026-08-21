@@ -132,3 +132,13 @@ dmypy.json
 *.pem
 LastChange.md
 docker-compose.local.yml
+
+# Python packaging's lib/ rule must not swallow the web app's source lib directory.
+!web/src/lib/
+!web/src/lib/**
+
+# Appliance runtime data (never commit certs or the device registry)
+/data/
+*.db
+cert.pem
+key.pem
