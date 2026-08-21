@@ -41,8 +41,16 @@ Every non-2xx response:
 | `invalid_pairing_code` | 400 | TV rejected the code |
 | `unreachable` | 503 | TV did not answer |
 | `invalid_key` | 400 | Key not in the catalog |
+| `invalid_request` | 400 | Malformed request body — see note below |
 | `unauthorized` | 401 | Missing/wrong token |
 | `internal_error` | 500 | Anything else |
+
+
+FastAPI's default validation failure is a 422 whose body shape is entirely different from
+this envelope, which would break any client parsing `error.code`. The app therefore catches
+request-validation errors and re-renders them as `400 invalid_request` in the envelope
+above, with the field-level detail under `error.details`. Clients only ever need to parse
+one error shape.
 
 ## Models
 

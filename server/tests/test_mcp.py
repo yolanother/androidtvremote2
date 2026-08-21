@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -587,7 +588,26 @@ def test_build_mcp_app_returns_a_mountable_asgi_app(manager: StubDeviceManager) 
 
 
 def test_the_module_imports_without_a_backend() -> None:
-    """``app.mcp_server`` must not import ``app.devices``, which lands on another branch."""
-    assert "app.devices" not in sys.modules
+    """``app.mcp_server`` must not import ``app.devices`` at runtime.
+
+    The DeviceManager is a TYPE_CHECKING-only import, so the MCP server has to load in a
+    process that has never touched ``app.devices``. Checking ``sys.modules`` in-process
+    cannot prove that once the rest of the suite has imported the backend, so this runs a
+    fresh interpreter.
+    """
+    probe = (
+        "import importlib, sys;"
+        "importlib.import_module('app.mcp_server');"
+        "sys.exit(1 if 'app.devices' in sys.modules else 0)"
+    )
+    result = subprocess.run(  # noqa: S603 - fixed argv, no shell.
+        [sys.executable, "-c", probe],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"importing app.mcp_server pulled in app.devices\nstderr: {result.stderr}"
+    )
     assert isinstance(CONTRACT_TOOLS, tuple)
     assert issubclass(RemoteError, Exception)

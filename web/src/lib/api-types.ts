@@ -164,6 +164,7 @@ export type ApiErrorCode =
   | 'invalid_pairing_code'
   | 'unreachable'
   | 'invalid_key'
+  | 'invalid_request'
   | 'unauthorized'
   | 'internal_error'
 
