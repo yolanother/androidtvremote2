@@ -105,8 +105,7 @@ def resolve_key(key: str) -> str:
     :raises InvalidKey: If the key is not in the catalog.
     """
     candidate = key.strip().upper()
-    if candidate.startswith("KEYCODE_"):
-        candidate = candidate[len("KEYCODE_") :]
+    candidate = candidate.removeprefix("KEYCODE_")
     descriptor = _KEYS_BY_SHORT.get(candidate)
     if descriptor is None:
         raise InvalidKey(f"Unknown key {key!r}")

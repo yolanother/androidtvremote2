@@ -15,8 +15,9 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import logging
-from datetime import datetime, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from zeroconf import ServiceStateChange
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncServiceInfo, AsyncZeroconf
@@ -120,7 +121,7 @@ class DiscoveryBrowser:
             if not await info.async_request(self._azc.zeroconf, RESOLVE_TIMEOUT_MS):
                 LOGGER.debug("Could not resolve %s", name)
                 return
-        except Exception:  # noqa: BLE001 - a failed resolve must never kill the browser
+        except Exception:  # a failed resolve must never kill the browser
             LOGGER.debug("Error resolving %s", name, exc_info=True)
             return
         entry = entry_from_info(name, info.parsed_addresses())
@@ -135,7 +136,7 @@ class DiscoveryBrowser:
                 await self.rescan()
             except asyncio.CancelledError:
                 return
-            except Exception:  # noqa: BLE001 - the loop must outlive one bad rescan
+            except Exception:  # the loop must outlive one bad rescan
                 LOGGER.debug("Rescan failed", exc_info=True)
 
 
@@ -155,7 +156,7 @@ def entry_from_info(name: str, addresses: list[str]) -> DiscoveredDevice | None:
         host=preferred_address(addresses),
         registered=False,
         device_id=None,
-        last_seen=datetime.now(timezone.utc),
+        last_seen=datetime.now(UTC),
     )
 
 

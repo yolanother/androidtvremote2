@@ -200,7 +200,7 @@ def _mount_mcp(app: FastAPI) -> None:
         return
     try:
         mcp_server.mount(app)
-    except Exception:  # noqa: BLE001 - a broken MCP mount must not stop the remote working
+    except Exception:  # a broken MCP mount must not stop the remote working
         LOGGER.exception("Could not mount the MCP server; /mcp will not be served")
 
 

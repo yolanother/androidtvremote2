@@ -15,7 +15,7 @@ import json
 import sqlite3
 import threading
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -160,7 +160,7 @@ class Registry:
                     record.model,
                     int(record.paired),
                     int(record.enabled),
-                    record.created_at.astimezone(timezone.utc).isoformat(),
+                    record.created_at.astimezone(UTC).isoformat(),
                 ),
             )
             self.connection.commit()
@@ -213,7 +213,7 @@ def _from_row(row: sqlite3.Row) -> DeviceRecord:
     """
     created = datetime.fromisoformat(row["created_at"])
     if created.tzinfo is None:
-        created = created.replace(tzinfo=timezone.utc)
+        created = created.replace(tzinfo=UTC)
     return DeviceRecord(
         id=row["id"],
         name=row["name"],

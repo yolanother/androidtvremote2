@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from .models import AppDescriptor
 
-
 #: Apps the UI offers as one-tap launches. ``launch`` is passed verbatim to the TV.
 APPS: tuple[AppDescriptor, ...] = (
     AppDescriptor(

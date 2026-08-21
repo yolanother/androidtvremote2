@@ -12,8 +12,8 @@ from __future__ import annotations
 import pytest
 
 from app.apps import APPS, resolve_app
-from app.keys import KEYS, resolve_key
 from app.errors import InvalidKey
+from app.keys import KEYS, resolve_key
 
 
 def test_every_key_is_a_real_android_keycode() -> None:

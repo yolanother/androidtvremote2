@@ -72,8 +72,8 @@ async def _read_client_frames(websocket: WebSocket) -> None:
     try:
         while True:
             frame = await websocket.receive_json()
-            if isinstance(frame, dict) and frame.get("type") == "ping":
-                if websocket.client_state is WebSocketState.CONNECTED:
-                    await websocket.send_json({"type": "pong"})
+            is_ping = isinstance(frame, dict) and frame.get("type") == "ping"
+            if is_ping and websocket.client_state is WebSocketState.CONNECTED:
+                await websocket.send_json({"type": "pong"})
     except (WebSocketDisconnect, RuntimeError, ValueError):
         return

@@ -10,7 +10,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -29,7 +30,7 @@ def _record(device_id: str = "aabbccddeeff", host: str = "192.168.1.23") -> Devi
         model="BRAVIA 4K GB",
         paired=False,
         enabled=True,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -102,7 +103,7 @@ def test_inserting_a_duplicate_id_is_rejected(tmp_path: Path) -> None:
     registry.open()
     try:
         registry.insert(_record())
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.IntegrityError):
             registry.insert(_record(host="192.168.1.99"))
     finally:
         registry.close()

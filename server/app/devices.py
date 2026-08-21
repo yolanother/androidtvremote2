@@ -18,10 +18,10 @@ import logging
 import shutil
 import sqlite3
 import uuid
-from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from collections.abc import AsyncIterator, Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from .apps import resolve_app
 from .config import Settings
@@ -237,7 +237,7 @@ class DeviceManager:
                 model=_model_of(remote),
                 paired=False,
                 enabled=True,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             try:
                 await asyncio.to_thread(self._registry.insert, record)
@@ -707,7 +707,7 @@ class DeviceManager:
             is_on=remote.is_on,
             current_app=remote.current_app,
             volume=_volume_of(remote),
-            last_seen=datetime.now(timezone.utc),
+            last_seen=datetime.now(UTC),
         )
 
     def _close_connection(self, device_id: str) -> None:
@@ -720,7 +720,7 @@ class DeviceManager:
             return
         try:
             connection.remote.disconnect()
-        except Exception:  # noqa: BLE001 - teardown must never raise
+        except Exception:  # teardown must never raise
             LOGGER.debug("Ignoring error while disconnecting %s", device_id, exc_info=True)
         connection.remote = None
 
@@ -738,7 +738,7 @@ class DeviceManager:
         if connection.pairing is not None:
             try:
                 connection.pairing.disconnect()
-            except Exception:  # noqa: BLE001 - teardown must never raise
+            except Exception:  # teardown must never raise
                 LOGGER.debug("Ignoring error while ending pairing for %s", device_id, exc_info=True)
             connection.pairing = None
 
@@ -814,7 +814,7 @@ class DeviceManager:
         :param device_id: MAC-derived device identifier.
         :param value: Whether the screen is on.
         """
-        self._set_state(device_id, is_on=value, last_seen=datetime.now(timezone.utc))
+        self._set_state(device_id, is_on=value, last_seen=datetime.now(UTC))
 
     def _on_current_app(self, device_id: str, value: str) -> None:
         """Record the TV's foreground app.
@@ -822,7 +822,7 @@ class DeviceManager:
         :param device_id: MAC-derived device identifier.
         :param value: Package id or URL of the foreground app.
         """
-        self._set_state(device_id, current_app=value or None, last_seen=datetime.now(timezone.utc))
+        self._set_state(device_id, current_app=value or None, last_seen=datetime.now(UTC))
 
     def _on_volume(self, device_id: str, value: dict[str, Any]) -> None:
         """Record the TV's volume readout.
@@ -835,7 +835,7 @@ class DeviceManager:
             volume=VolumeInfo(
                 level=value.get("level"), max=value.get("max"), muted=bool(value.get("muted"))
             ),
-            last_seen=datetime.now(timezone.utc),
+            last_seen=datetime.now(UTC),
         )
 
     def _on_available(self, device_id: str, value: bool) -> None:
@@ -847,7 +847,7 @@ class DeviceManager:
         record = self._records.get(device_id)
         if value:
             self._set_state(
-                device_id, connection="connected", error=None, last_seen=datetime.now(timezone.utc)
+                device_id, connection="connected", error=None, last_seen=datetime.now(UTC)
             )
         else:
             host = record.host if record else "the TV"
@@ -943,7 +943,7 @@ class DeviceManager:
         fabricating. They are seeded into the discovery cache instead, where the operator
         can register them properly.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for host, name in read_legacy_seeds(self._legacy_seed_path):
             mdns_name = f"{name}.{SERVICE_TYPE}"
             self._discovered.setdefault(

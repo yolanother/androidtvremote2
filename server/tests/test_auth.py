@@ -89,9 +89,8 @@ def test_the_websocket_rejects_a_missing_token(secured_client: Any) -> None:
     """An unauthenticated WebSocket is closed rather than served the snapshot."""
     from starlette.websockets import WebSocketDisconnect
 
-    with pytest.raises(WebSocketDisconnect):
-        with secured_client.websocket_connect("/api/ws") as socket:
-            socket.receive_json()
+    with pytest.raises(WebSocketDisconnect), secured_client.websocket_connect("/api/ws") as socket:
+        socket.receive_json()
 
 
 def test_the_websocket_accepts_the_query_token(secured_client: Any) -> None:

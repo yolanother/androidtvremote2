@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -25,7 +25,7 @@ if str(SERVER_DIR) not in sys.path:
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.append(str(REPO_ROOT / "src"))
 
-from app.config import Settings  # noqa: E402
+from app.config import Settings
 
 
 class FakeRemote:
@@ -38,9 +38,9 @@ class FakeRemote:
     """
 
     #: Every instance ever constructed, in construction order. Reset by the fixture.
-    instances: list[FakeRemote] = []
+    instances: ClassVar[list[FakeRemote]] = []
     #: Name/MAC returned by :meth:`async_get_name_and_mac`, keyed by host.
-    identities: dict[str, tuple[str, str]] = {}
+    identities: ClassVar[dict[str, tuple[str, str]]] = {}
     #: Exception class to raise from :meth:`async_connect`, or ``None`` to succeed.
     connect_error: type[Exception] | None = None
     #: Exception class to raise from :meth:`async_finish_pairing`, or ``None``.
