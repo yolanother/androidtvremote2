@@ -8,12 +8,15 @@
  * hiding the panel on Escape the way a native popover does. Everything else is delegated to
  * `useAppliance` for state and to the two views for presentation.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { RemotePanel } from '@/components/RemotePanel'
 import { SettingsView } from '@/components/SettingsView'
 import { useAppliance } from '@/lib/useAppliance'
+
+/** Panel width in logical pixels; must match `tauri.conf.json`'s window width. */
+const PANEL_WIDTH = 340
 
 /** Which of the panel's two screens is showing. */
 type View = 'remote' | 'settings'
@@ -26,6 +29,7 @@ type View = 'remote' | 'settings'
 export default function App() {
   const appliance = useAppliance()
   const [view, setView] = useState<View>('remote')
+  const surface = useRef<HTMLElement>(null)
 
   // First run has nothing to control yet, so open settings instead of an empty remote.
   useEffect(() => {
@@ -41,6 +45,21 @@ export default function App() {
     }
   }, [])
 
+  // Keep the window exactly as tall as the panel's content, so showing or clearing the
+  // error banner does not leave a gap at the bottom of the popover.
+  useEffect(() => {
+    const element = surface.current
+    if (!element || !isTauri()) return
+    const observer = new ResizeObserver(() => {
+      void invoke('resize_panel', {
+        width: PANEL_WIDTH,
+        height: Math.ceil(element.getBoundingClientRect().height),
+      }).catch(() => undefined)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
   // Escape dismisses the panel, like any native popover.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -53,7 +72,7 @@ export default function App() {
   }, [])
 
   return (
-    <main className="panel-surface h-full overflow-hidden">
+    <main ref={surface} className="panel-surface overflow-hidden">
       {appliance.loading ? null : view === 'settings' ? (
         <SettingsView appliance={appliance} onClose={() => setView('remote')} />
       ) : (

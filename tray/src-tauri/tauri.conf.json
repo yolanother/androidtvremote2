@@ -16,7 +16,7 @@
         "label": "panel",
         "title": "Android TV Remote",
         "width": 340,
-        "height": 560,
+        "height": 380,
         "resizable": false,
         "decorations": false,
         "transparent": true,
