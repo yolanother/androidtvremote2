@@ -36,7 +36,7 @@ class EventBus:
     def __init__(self, maxsize: int = DEFAULT_QUEUE_SIZE) -> None:
         """Initialize an empty bus."""
         self._maxsize = maxsize
-        self._subscribers: set[asyncio.Queue[Event]] = set()
+        self._subscribers: set[asyncio.Queue[Event | None]] = set()
 
     @property
     def subscriber_count(self) -> int:
@@ -47,12 +47,15 @@ class EventBus:
         return len(self._subscribers)
 
     @contextmanager
-    def subscribe(self) -> Iterator[asyncio.Queue[Event]]:
+    def subscribe(self) -> Iterator[asyncio.Queue[Event | None]]:
         """Attach a subscriber for the duration of the ``with`` block.
+
+        A ``None`` on the queue is the eviction sentinel: the subscriber fell too far
+        behind and has been detached, and whoever is draining should stop and close.
 
         :returns: A bounded queue that receives every event published while attached.
         """
-        queue: asyncio.Queue[Event] = asyncio.Queue(maxsize=self._maxsize)
+        queue: asyncio.Queue[Event | None] = asyncio.Queue(maxsize=self._maxsize)
         self._subscribers.add(queue)
         try:
             yield queue
@@ -73,5 +76,24 @@ class EventBus:
             try:
                 queue.put_nowait(event)
             except asyncio.QueueFull:
-                LOGGER.warning("Dropping event subscriber that fell more than %d events behind", self._maxsize)
+                LOGGER.warning(
+                    "Dropping event subscriber that fell more than %d events behind", self._maxsize
+                )
                 self._subscribers.discard(queue)
+                _drain(queue)
+                queue.put_nowait(None)
+
+
+def _drain(queue: asyncio.Queue[Event | None]) -> None:
+    """Discard everything still queued for an evicted subscriber.
+
+    Makes room for the eviction sentinel and releases the stale frames the subscriber was
+    never going to read.
+
+    :param queue: The evicted subscriber's queue.
+    """
+    while True:
+        try:
+            queue.get_nowait()
+        except asyncio.QueueEmpty:
+            return

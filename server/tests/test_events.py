@@ -42,8 +42,11 @@ async def test_slow_subscriber_is_dropped_not_backpressured() -> None:
     with bus.subscribe() as queue:
         for index in range(20):
             bus.publish({"type": "device.state", "n": index})
-        assert queue.qsize() <= 4
         assert bus.subscriber_count == 0
+        # The evicted queue is drained and left holding only the eviction sentinel, which
+        # is how the WebSocket handler learns to close the socket.
+        assert queue.qsize() == 1
+        assert await queue.get() is None
 
 
 async def test_publish_is_synchronous() -> None:

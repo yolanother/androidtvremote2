@@ -109,10 +109,15 @@ class Registry:
         self._connection = connection
 
     def close(self) -> None:
-        """Close the database connection if it is open."""
-        if self._connection is not None:
-            self._connection.close()
-            self._connection = None
+        """Close the database connection if it is open.
+
+        Taken under the same lock as every statement: closing a SQLite connection while
+        another worker thread is mid-statement on it segfaults the interpreter.
+        """
+        with self._lock:
+            if self._connection is not None:
+                self._connection.close()
+                self._connection = None
 
     def list(self) -> list[DeviceRecord]:
         """Return every registered device, oldest registration first.
