@@ -649,3 +649,29 @@ async def test_a_registered_seed_is_marked_registered(
         assert seed.device_id == device.id
     finally:
         await manager.stop()
+
+
+# --------------------------------------------------------------------------------------
+# Catalog passthroughs — the MCP tools reach the catalogs through this facade
+# --------------------------------------------------------------------------------------
+
+
+async def test_manager_exposes_the_key_catalog(settings: Settings, fake_remote: Any) -> None:
+    """``list_keys`` is a sync passthrough, filterable by category."""
+    manager = await _manager(settings, fake_remote)
+    try:
+        assert any(k.key == "DPAD_UP" for k in manager.list_keys())
+        volume = manager.list_keys("volume")
+        assert volume and all(k.category == "volume" for k in volume)
+        assert manager.list_keys("nonsense") == []
+    finally:
+        await manager.stop()
+
+
+async def test_manager_exposes_the_app_catalog(settings: Settings, fake_remote: Any) -> None:
+    """``list_apps`` is a sync passthrough over the app catalog."""
+    manager = await _manager(settings, fake_remote)
+    try:
+        assert any(a.id == "netflix" for a in manager.list_apps())
+    finally:
+        await manager.stop()

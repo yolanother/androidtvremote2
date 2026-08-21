@@ -295,3 +295,97 @@ def test_embed_responses_carry_the_frame_ancestors_policy(app_client: Any) -> No
     """The embed view has to be framable by a home panel, so CSP is set explicitly."""
     response = app_client.get("/healthz")
     assert "frame-ancestors" in response.headers.get("content-security-policy", "")
+
+
+def test_module_level_app_is_an_asgi_instance() -> None:
+    """The container entrypoint is ``uvicorn app.main:app``, so a bound app must exist."""
+    from fastapi import FastAPI
+
+    from app.main import app as asgi_app
+
+    assert isinstance(asgi_app, FastAPI)
+
+
+def test_the_manager_exists_before_startup() -> None:
+    """mount_mcp() receives the manager at mount time, so it cannot wait for the lifespan."""
+    from app.devices import DeviceManager
+    from app.main import create_app
+
+    built = create_app()
+    assert isinstance(built.state.devices, DeviceManager)
+
+
+def test_mcp_is_mounted_through_the_streams_helper(monkeypatch: Any) -> None:
+    """main.py calls mcp_server.mount_mcp(app, manager), the contract the MCP stream owns.
+
+    That module is built on another branch, so this stubs it: the point is to catch a
+    signature or call-shape mismatch here rather than at integration.
+    """
+    import sys
+    import types
+
+    import app as app_package
+    from app.devices import DeviceManager
+    from app.main import create_app
+
+    calls: list[tuple[Any, Any]] = []
+    stub = types.ModuleType("app.mcp_server")
+    stub.mount_mcp = lambda application, manager: calls.append((application, manager))
+    monkeypatch.setitem(sys.modules, "app.mcp_server", stub)
+    monkeypatch.setattr(app_package, "mcp_server", stub, raising=False)
+
+    built = create_app()
+    assert len(calls) == 1
+    mounted_app, mounted_manager = calls[0]
+    assert mounted_app is built
+    assert isinstance(mounted_manager, DeviceManager)
+    assert mounted_manager is built.state.devices
+
+
+def test_a_broken_mcp_mount_does_not_stop_the_remote(monkeypatch: Any) -> None:
+    """The remote must keep working even if the MCP module fails to mount."""
+    import sys
+    import types
+
+    import app as app_package
+    from app.main import create_app
+
+    def explode(application: Any, manager: Any) -> None:
+        raise RuntimeError("Task group is not initialized")
+
+    stub = types.ModuleType("app.mcp_server")
+    stub.mount_mcp = explode
+    monkeypatch.setitem(sys.modules, "app.mcp_server", stub)
+    monkeypatch.setattr(app_package, "mcp_server", stub, raising=False)
+
+    built = create_app()
+    assert built is not None
+
+
+def test_the_spa_is_served_with_deep_link_fallback(tmp_path: Any, monkeypatch: Any) -> None:
+    """The built SPA is served at / and unknown paths fall back to its entry point.
+
+    The fallback is why this is a route rather than StaticFiles(html=True): a client-side
+    route like /devices/aabbccddeeff has no file behind it and must still load the SPA.
+    """
+    from fastapi.testclient import TestClient
+
+    from app import main
+
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>SPA</title>", encoding="utf-8")
+    (dist / "assets" / "main.js").write_text("console.log(1)", encoding="utf-8")
+    monkeypatch.setattr(main, "SPA_DIR", dist)
+
+    with TestClient(main.create_app()) as client:
+        assert "SPA" in client.get("/").text
+        assert "SPA" in client.get("/devices/aabbccddeeff").text
+        assert client.get("/assets/main.js").text == "console.log(1)"
+        # The API still wins over the catch-all.
+        assert client.get("/healthz").json()["status"] == "ok"
+
+
+def test_the_server_starts_without_a_built_spa(app_client: Any) -> None:
+    """The dev workflow runs Vite separately, so a missing web/dist must not break startup."""
+    assert app_client.get("/healthz").status_code == 200

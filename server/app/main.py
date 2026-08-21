@@ -53,14 +53,16 @@ def create_app(
     :returns: The configured application, ready for uvicorn.
     """
     resolved = settings or get_settings()
+    # Built here rather than inside the lifespan because mount_mcp() needs the manager at
+    # mount time, before startup. Construction touches neither disk nor network; start()
+    # is what opens the database and the connections.
+    manager = DeviceManager(
+        resolved, remote_factory=remote_factory, legacy_seed_path=legacy_seed_path
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        """Start the DeviceManager for the life of the process."""
-        manager = DeviceManager(
-            resolved, remote_factory=remote_factory, legacy_seed_path=legacy_seed_path
-        )
-        app.state.devices = manager
+        """Run the DeviceManager for the life of the process."""
         await manager.start()
         try:
             yield
@@ -81,6 +83,7 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.settings = resolved
+    app.state.devices = manager
 
     app.add_middleware(
         CORSMiddleware,
@@ -137,7 +140,7 @@ def create_app(
             version=__version__,
         )
 
-    _mount_mcp(app)
+    _mount_mcp(app, manager)
     _mount_spa(app)
     return app
 
@@ -184,14 +187,19 @@ def _install_error_handlers(app: FastAPI) -> None:
         )
 
 
-def _mount_mcp(app: FastAPI) -> None:
+def _mount_mcp(app: FastAPI, manager: DeviceManager) -> None:
     """Mount the MCP server at /mcp when that module is present.
 
-    ``app/mcp_server.py`` belongs to a separate workstream. It is imported optionally so
-    the backend runs with or without it, and so mounting it does not require editing this
-    file later.
+    ``app/mcp_server.py`` belongs to a separate workstream, so it is imported optionally
+    and the appliance runs with or without it. Mounting goes through that module's own
+    ``mount_mcp`` helper rather than ``app.mount("/mcp", ...)``: a mounted sub-app never
+    receives ASGI lifespan events, so the MCP session manager would never start and the
+    first request would fail with "Task group is not initialized". The helper also
+    registers both ``/mcp`` and ``/mcp/``, because Starlette's Mount would answer the
+    bare path with a 307 that the MCP client does not follow.
 
     :param app: The application to mount onto.
+    :param manager: The device manager the MCP tools drive.
     """
     try:
         from . import mcp_server
@@ -199,7 +207,7 @@ def _mount_mcp(app: FastAPI) -> None:
         LOGGER.info("MCP server module is not present; /mcp will not be served")
         return
     try:
-        mcp_server.mount(app)
+        mcp_server.mount_mcp(app, manager)
     except Exception:  # a broken MCP mount must not stop the remote working
         LOGGER.exception("Could not mount the MCP server; /mcp will not be served")
 
@@ -232,3 +240,8 @@ def _mount_spa(app: FastAPI) -> None:
         if path and SPA_DIR in candidate.parents and candidate.is_file():
             return FileResponse(candidate)
         return FileResponse(index)
+
+
+#: Module-level ASGI instance. The container entrypoint is ``uvicorn app.main:app``, which
+#: imports a bound application rather than calling the factory.
+app = create_app()

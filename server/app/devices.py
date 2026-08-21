@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .apps import resolve_app
+from .apps import APPS, resolve_app
 from .config import Settings
 from .errors import (
     DeviceExists,
@@ -34,8 +34,15 @@ from .errors import (
     Unreachable,
 )
 from .events import Event, EventBus
-from .keys import resolve_key
-from .models import Device, DeviceState, DiscoveredDevice, VolumeInfo
+from .keys import keys_in_category, resolve_key
+from .models import (
+    AppDescriptor,
+    Device,
+    DeviceState,
+    DiscoveredDevice,
+    KeyDescriptor,
+    VolumeInfo,
+)
 from .storage import DeviceRecord, Registry, read_legacy_seeds
 from .vendored import AndroidTVRemote, CannotConnect, ConnectionClosed, InvalidAuth
 
@@ -535,6 +542,26 @@ class DeviceManager:
         elif action == "toggle_mute" or (action == "mute" and not muted) or (action == "unmute" and muted):
             self._guard(lambda: remote.send_key_command("KEYCODE_VOLUME_MUTE", "SHORT"))
         return self._connections[device_id].state
+
+    # -- catalogs ----------------------------------------------------------------------
+
+    def list_keys(self, category: str | None = None) -> list[KeyDescriptor]:
+        """Return the key catalog, optionally narrowed to one category.
+
+        A passthrough so that every surface reaches the catalog through this one facade
+        rather than each importing the catalog module itself.
+
+        :param category: Category to filter by, or ``None`` for the whole catalog.
+        :returns: The matching key descriptors.
+        """
+        return keys_in_category(category)
+
+    def list_apps(self) -> list[AppDescriptor]:
+        """Return the app catalog.
+
+        :returns: Every catalogued app.
+        """
+        return list(APPS)
 
     # -- discovery ---------------------------------------------------------------------
 
