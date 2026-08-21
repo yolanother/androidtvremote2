@@ -145,3 +145,9 @@ key.pem
 
 # Agent tooling scaffolding, synced by orch rather than authored here.
 .orchestrator/tasks/commitmsg.txt
+
+# Agent tooling synced by orch into the working tree; not project source.
+.claude/settings.json
+.claude/hookify.*.local.md
+.orchestrator/hooks.json
+.orchestrator/scripts/
