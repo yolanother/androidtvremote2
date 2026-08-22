@@ -18,6 +18,7 @@ import { getToken, setToken } from '@/lib/api'
 import { useTheme, type Theme } from '@/lib/prefs'
 import type { HealthResponse } from '@/lib/api-types'
 import { InstallSection } from '@/pwa/InstallSection'
+import { setPublicUrl } from '@/pwa/runtime'
 
 /** Whether the appliance rejects unauthenticated requests. */
 type AuthState = 'checking' | 'required' | 'open'
@@ -59,7 +60,12 @@ export function SettingsPage() {
     void probeAuth().then(setAuth)
     void fetch('/healthz')
       .then((response) => (response.ok ? (response.json() as Promise<HealthResponse>) : null))
-      .then(setHealth)
+      .then((response) => {
+        setHealth(response)
+        // Feeds the install section: an insecure origin offers a link to this instead of
+        // explaining a dead end, and renders nothing at all when it is not configured.
+        setPublicUrl(response?.public_url ?? null)
+      })
       .catch(() => setError('Could not reach the appliance health endpoint.'))
   }, [])
 

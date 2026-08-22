@@ -56,6 +56,9 @@ services:
       # browser would return an empty list forever. Add devices by IP in this stack.
       DISCOVERY_ENABLED: "false"
       DISCOVERY_INTERVAL: ${DISCOVERY_INTERVAL:-60}
+      # Advisory only: the HTTPS origin the UI points phones at to install the PWA,
+      # since a browser will not install one served from http://<lan-ip>.
+      PUBLIC_URL: ${PUBLIC_URL:-}
       FRAME_ANCESTORS: ${FRAME_ANCESTORS:-*}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}

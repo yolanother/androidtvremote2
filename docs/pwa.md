@@ -83,6 +83,45 @@ For desktop debugging only, Chrome's
 treated as secure. Do not ship this to a household — it is a per-device developer setting
 that weakens the browser.
 
+## Pointing the UI at your HTTPS origin: `PUBLIC_URL`
+
+Set `PUBLIC_URL` in `.env` to the HTTPS origin the appliance is also reachable at:
+
+```sh
+.orchestrator/scripts/dev-config.sh env set PUBLIC_URL https://remote.example.net
+docker compose up -d
+```
+
+It is advisory only — the appliance never connects to it, and it changes nothing about how
+the server listens. It changes one thing: what the Settings screen's **Install** section
+does.
+
+| Where you opened the remote | `PUBLIC_URL` set | What Install shows |
+|---|---|---|
+| `https://remote.example.net` | either | The real install button |
+| `http://192.168.1.50:7433` | yes | A link to `https://remote.example.net` to install from there |
+| `http://192.168.1.50:7433` | no | **Nothing at all** |
+
+The last row is deliberate. Telling someone "this cannot be installed" is not something
+they can act on, so the section is hidden entirely rather than explaining a dead end. The
+appliance refuses to start if `PUBLIC_URL` is an `http://` URL, because advertising a
+plaintext origin would send people somewhere the install still cannot happen.
+
+Any of these gets you an HTTPS origin — pick whatever you already run:
+
+- A reverse proxy terminating TLS (nginx, openresty, Caddy, Traefik) with a Let's Encrypt
+  certificate on a hostname that resolves to the appliance.
+- A Cloudflare Tunnel, which needs no port forwarding and no inbound firewall rule.
+- Tailscale or a similar mesh VPN with HTTPS on the tailnet name.
+
+Whichever you choose, **the proxy must forward WebSocket upgrades to `/api/ws`** or the UI
+loads and then sits there never receiving live state.
+
+A public hostname does not make the appliance private. If the origin is reachable from the
+internet and `REMOTE_API_TOKEN` is unset, anyone who resolves the name can list your
+televisions and control them. Restrict the origin at your firewall or VPN, set a token, or
+both. See `.env.example`.
+
 ## Installing
 
 ### Android (Chrome or Edge), on a secure origin

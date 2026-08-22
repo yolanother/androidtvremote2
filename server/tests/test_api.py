@@ -386,6 +386,73 @@ def test_the_spa_is_served_with_deep_link_fallback(tmp_path: Any, monkeypatch: A
         assert client.get("/healthz").json()["status"] == "ok"
 
 
+def test_healthz_advertises_a_configured_public_url(monkeypatch: Any) -> None:
+    """/healthz carries PUBLIC_URL so the UI can send a phone to a secure origin.
+
+    The web UI hides its Install section entirely when this is absent, because a browser
+    cannot install a PWA from http://<lan-ip> and saying so is not actionable.
+    """
+    from fastapi.testclient import TestClient
+
+    from app import config, main
+
+    monkeypatch.setenv("PUBLIC_URL", "https://remote.example.net/")
+    config.get_settings.cache_clear()
+    try:
+        with TestClient(main.create_app()) as client:
+            # The trailing slash is normalised away so the UI can append paths safely.
+            assert client.get("/healthz").json()["public_url"] == "https://remote.example.net"
+    finally:
+        config.get_settings.cache_clear()
+
+
+def test_healthz_reports_no_public_url_when_unset(app_client: Any) -> None:
+    """With PUBLIC_URL unset the field is null, which hides the Install section."""
+    assert app_client.get("/healthz").json()["public_url"] is None
+
+
+def test_a_plaintext_public_url_is_refused(monkeypatch: Any) -> None:
+    """An http:// PUBLIC_URL is rejected rather than quietly advertised.
+
+    The entire point of the setting is to name an origin a browser treats as secure, so
+    accepting a plaintext one would send people somewhere the install still cannot happen.
+    """
+    import pytest
+
+    from app import config
+
+    monkeypatch.setenv("PUBLIC_URL", "http://remote.example.net")
+    config.get_settings.cache_clear()
+    try:
+        with pytest.raises(Exception, match="https"):
+            config.get_settings()
+    finally:
+        config.get_settings.cache_clear()
+
+
+def test_head_works_wherever_get_does(tmp_path: Any, monkeypatch: Any) -> None:
+    """Reverse proxies, uptime monitors and link checkers probe with HEAD, not GET.
+
+    Both the health endpoint and the SPA catch-all were originally registered GET-only, so
+    a HEAD probe got 405 on ``/`` and, once the catch-all stopped swallowing known API
+    prefixes, 404 on ``/healthz``. Either reads as an outage to a monitor.
+    """
+    from fastapi.testclient import TestClient
+
+    from app import main
+
+    dist = tmp_path / "dist"
+    dist.mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>SPA</title>", encoding="utf-8")
+    monkeypatch.setattr(main, "SPA_DIR", dist)
+
+    with TestClient(main.create_app()) as client:
+        for path in ("/healthz", "/", "/devices"):
+            assert client.head(path).status_code == 200, path
+        # An unmatched API path is still a 404 under HEAD.
+        assert client.head("/api/nonsense").status_code == 404
+
+
 def test_an_unmatched_api_path_is_a_json_404_not_the_spa_shell(
     tmp_path: Any, monkeypatch: Any
 ) -> None:

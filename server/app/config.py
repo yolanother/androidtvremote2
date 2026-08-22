@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     discovery_enabled: bool = Field(default=True)
     #: Seconds between full mDNS rescans.
     discovery_interval: int = Field(default=60, ge=5)
+    #: Public HTTPS origin this appliance is also reachable at, e.g.
+    #: ``https://remote.example.net``. Purely advisory: the appliance never calls it. It
+    #: exists so the web UI can point a phone at a secure origin, because a browser will
+    #: not install a PWA or run a service worker from ``http://<lan-ip>``.
+    public_url: str | None = Field(default=None)
     #: CSP ``frame-ancestors`` value governing which sites may iframe the embed view.
     frame_ancestors: str = Field(default="*")
     #: Log level passed to uvicorn and the application logger.
@@ -53,6 +58,28 @@ class Settings(BaseSettings):
     def _expand_data_dir(cls, value: str | Path) -> Path:
         """Expand ``~`` and resolve the configured data directory to an absolute path."""
         return Path(value).expanduser()
+
+    @field_validator("public_url", mode="before")
+    @classmethod
+    def _clean_public_url(cls, value: str | None) -> str | None:
+        """Normalise the advertised public origin, rejecting one that cannot be secure.
+
+        An ``http://`` origin is refused rather than quietly accepted: the whole point of
+        this setting is to name an origin a browser will treat as secure, and advertising
+        a plaintext one would send the operator somewhere the install still cannot happen.
+
+        :param value: Raw environment value, possibly empty or with a trailing slash.
+        :returns: The origin without a trailing slash, or ``None`` when unset.
+        :raises ValueError: If a non-empty value is not an ``https://`` URL.
+        """
+        if value is None:
+            return None
+        cleaned = value.strip().rstrip("/")
+        if not cleaned:
+            return None
+        if not cleaned.startswith("https://"):
+            raise ValueError("PUBLIC_URL must be an https:// origin, or left unset")
+        return cleaned
 
     @property
     def database_path(self) -> Path:

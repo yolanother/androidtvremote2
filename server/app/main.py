@@ -120,8 +120,11 @@ def create_app(
     # close a WebSocket handshake with a meaningful code.
     app.include_router(ws.router, prefix="/api")
 
-    @app.get(
+    # HEAD as well as GET: uptime monitors and load balancers health-check with HEAD, and
+    # a GET-only route answers them 404 via the catch-all, which looks like an outage.
+    @app.api_route(
         "/healthz",
+        methods=["GET", "HEAD"],
         response_model=HealthResponse,
         tags=["health"],
         summary="Liveness and device summary",
@@ -138,6 +141,7 @@ def create_app(
             devices=len(all_devices),
             connected=sum(1 for d in all_devices if d.state.connection == "connected"),
             version=__version__,
+            public_url=get_settings().public_url,
         )
 
     _mount_mcp(app, manager)
@@ -234,7 +238,9 @@ def _mount_spa(app: FastAPI) -> None:
     # silently gets the full app -- chrome, nav and all -- squeezed into a 240px iframe.
     embed = SPA_DIR / "embed.html"
 
-    @app.get("/{path:path}", include_in_schema=False)
+    # HEAD as well as GET: reverse proxies, uptime monitors and link checkers probe with
+    # HEAD, and a bare @app.get answers them 405, which reads as a broken site.
+    @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     async def spa(path: str) -> FileResponse:
         """Serve a static file when one matches, otherwise the right HTML entry point.
 

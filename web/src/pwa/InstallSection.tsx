@@ -4,16 +4,18 @@
  *
  * The "Install" block of the Android TV Remote settings screen. Offers a real install
  * button when Chromium has fired `beforeinstallprompt`, Share-sheet instructions on iOS
- * where that event does not exist, and a plain explanation when the appliance is reached
- * over an insecure origin such as `http://192.168.1.209:7433` — where no browser will
- * install the app however good the manifest is. Never renders a button that would do
- * nothing when clicked.
+ * where that event does not exist, and — when the appliance is reached over an insecure
+ * origin such as `http://192.168.1.209:7433`, where no browser will install it however
+ * good the manifest is — a link to the public HTTPS origin the operator configured via
+ * PUBLIC_URL. When no such origin is configured the whole section renders nothing, because
+ * "you cannot install this" is not something the reader can act on. Never renders a button
+ * that would do nothing when clicked.
  */
 import { useState, useSyncExternalStore } from 'react'
 import { CheckCircle2, Download, Lock, Share } from 'lucide-react'
 
 import { Btn } from '@/components/ui'
-import { getInstallState, install, subscribe } from '@/pwa/runtime'
+import { getInstallState, getPublicUrl, install, subscribe } from '@/pwa/runtime'
 
 /**
  * The settings block that installs the remote to the home screen.
@@ -22,7 +24,12 @@ import { getInstallState, install, subscribe } from '@/pwa/runtime'
  */
 export function InstallSection() {
   const state = useSyncExternalStore(subscribe, getInstallState)
+  const publicUrl = useSyncExternalStore(subscribe, getPublicUrl)
   const [dismissed, setDismissed] = useState(false)
+
+  // Nothing installable and nowhere to send them: say nothing rather than explaining a
+  // dead end the reader cannot do anything about.
+  if (state === 'unconfigured') return null
 
   return (
     <section className="flex flex-col gap-3">
@@ -67,19 +74,21 @@ export function InstallSection() {
         </div>
       )}
 
-      {state === 'insecure' && (
-        <div className="bg-pairing/10 text-pairing flex items-start gap-3 rounded-xl p-3 text-sm">
+      {state === 'elsewhere' && publicUrl && (
+        <div className="bg-secondary flex items-start gap-3 rounded-xl p-3 text-sm">
           <Lock aria-hidden className="mt-0.5 size-5 shrink-0" />
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-2">
             <p>
-              This appliance is being served over plain HTTP, so your browser will not
-              install it. Installing needs a secure origin — HTTPS, or localhost.
+              This page is served over plain HTTP, so your browser will not install it.
+              Open the remote over HTTPS and install it from there.
             </p>
-            <p className="text-muted-foreground">
-              Add to Home Screen from the browser menu still works; it makes a shortcut
-              that opens in a normal browser tab. See docs/pwa.md for how to put the
-              appliance behind HTTPS and get the real thing.
-            </p>
+            <a
+              className="text-foreground font-medium underline underline-offset-4"
+              href={`${publicUrl}/settings`}
+              rel="noreferrer"
+            >
+              {publicUrl}
+            </a>
           </div>
         </div>
       )}

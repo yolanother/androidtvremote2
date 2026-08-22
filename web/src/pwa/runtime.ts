@@ -34,12 +34,25 @@ interface BeforeInstallPromptEvent extends Event {
  *   `http://192.168.x.x:7433`; see docs/pwa.md.
  * - `unavailable` — installable in principle, but this browser has not offered a prompt
  *   (Firefox and desktop Safari never do).
+ * - `elsewhere` — not a secure context, but the operator has configured a public HTTPS
+ *   origin, so the UI can send the user there to install instead of explaining a dead end.
+ * - `unconfigured` — not a secure context and no public origin is configured. Installing
+ *   is impossible and there is nothing actionable to say, so the UI shows nothing at all.
  */
-export type InstallState = 'ready' | 'installed' | 'ios' | 'insecure' | 'unavailable'
+export type InstallState =
+  | 'ready'
+  | 'installed'
+  | 'ios'
+  | 'insecure'
+  | 'unavailable'
+  | 'elsewhere'
+  | 'unconfigured'
 
 const listeners = new Set<() => void>()
 
 let installState: InstallState = 'unavailable'
+/** Public HTTPS origin the appliance advertises, once /healthz has been read. */
+let publicUrl: string | null = null
 let deferredPrompt: BeforeInstallPromptEvent | null = null
 let updateReady = false
 
@@ -160,7 +173,31 @@ export function subscribe(listener: () => void): () => void {
  * @returns What the install UI should currently offer.
  */
 export function getInstallState(): InstallState {
+  if (installState === 'insecure') return publicUrl ? 'elsewhere' : 'unconfigured'
   return installState
+}
+
+/**
+ * Record the public HTTPS origin the appliance advertises via `/healthz`.
+ *
+ * Called once the health response arrives. It only changes what an INSECURE origin shows:
+ * with an origin configured the UI offers a link to it, without one it renders nothing,
+ * because telling someone their appliance cannot be installed is noise they cannot act on.
+ *
+ * @param url - The advertised origin, or null when the operator has not configured one.
+ */
+export function setPublicUrl(url: string | null): void {
+  const next = url && url.trim() ? url.replace(/\/+$/, '') : null
+  if (next === publicUrl) return
+  publicUrl = next
+  emit()
+}
+
+/**
+ * @returns The advertised public HTTPS origin, or null when none is configured.
+ */
+export function getPublicUrl(): string | null {
+  return publicUrl
 }
 
 /**

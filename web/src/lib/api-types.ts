@@ -208,6 +208,12 @@ export interface HealthResponse {
   devices: number
   connected: number
   version: string
+  /**
+   * Public HTTPS origin the appliance is also reachable at, when the operator configured
+   * `PUBLIC_URL`. The UI uses it to send a phone to a secure origin, because no browser
+   * installs a PWA served from `http://<lan-ip>`. Null when unconfigured.
+   */
+  public_url: string | null
 }
 
 /** Machine-readable failure codes shared by REST and MCP. */

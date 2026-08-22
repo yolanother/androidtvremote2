@@ -237,6 +237,14 @@ class HealthResponse(BaseModel):
     devices: int = Field(description="Number of registered devices.")
     connected: int = Field(description="Number of devices with a live connection.")
     version: str = Field(description="Application version.")
+    public_url: str | None = Field(
+        default=None,
+        description=(
+            "Public HTTPS origin this appliance is also reachable at, when the operator has"
+            " configured one. The web UI uses it to point a phone at a secure origin, since"
+            " a browser will not install a PWA served from http://<lan-ip>."
+        ),
+    )
 
 
 class MediaControlRequest(BaseModel):
