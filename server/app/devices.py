@@ -24,11 +24,13 @@ from pathlib import Path
 from typing import Any
 
 from .apps import APPS, resolve_app
+from .cast import CastSession, cast_enabled
 from .config import Settings
 from .errors import (
     DeviceExists,
     DeviceNotFound,
     InvalidPairingCode,
+    NoMediaSession,
     NotPaired,
     PairingNotStarted,
     Unreachable,
@@ -37,10 +39,12 @@ from .events import Event, EventBus
 from .keys import keys_in_category, resolve_key
 from .models import (
     AppDescriptor,
+    CastInfo,
     Device,
     DeviceState,
     DiscoveredDevice,
     KeyDescriptor,
+    NowPlaying,
     VolumeInfo,
 )
 from .storage import DeviceRecord, Registry, read_legacy_seeds
@@ -69,6 +73,8 @@ class _Connection:
         self.state = state
         #: Pairing handshake in flight, if any.
         self.pairing: Any = None
+        #: Held Google Cast channel, or ``None`` when Cast is off or has not started.
+        self.cast: Any = None
         #: Task that tears the pairing session down when it times out.
         self.pairing_timer: asyncio.Task[None] | None = None
 
@@ -81,6 +87,8 @@ class DeviceManager:
         Overridden in tests so the manager can be exercised without a TV on the network.
     :param legacy_seed_path: Location of the old build's ``paired_tvs.json``. Its entries
         become discovery seeds; defaults to the path used by the Flask build.
+    :param cast_factory: Callable producing a :class:`~app.cast.CastSession`-compatible
+        object. Defaults to the real one, resolved at call time so tests can substitute it.
     """
 
     def __init__(
@@ -88,6 +96,7 @@ class DeviceManager:
         settings: Settings,
         remote_factory: Callable[..., Any] = AndroidTVRemote,
         legacy_seed_path: Path | None = None,
+        cast_factory: Callable[..., Any] | None = None,
     ) -> None:
         """Initialize the manager without touching the database or the network."""
         self.settings = settings
@@ -96,6 +105,7 @@ class DeviceManager:
         self.pairing_timeout = PAIRING_TIMEOUT
 
         self._remote_factory = remote_factory
+        self._cast_factory = cast_factory
         self._registry = Registry(settings.database_path)
         self._legacy_seed_path = (
             legacy_seed_path
@@ -137,6 +147,11 @@ class DeviceManager:
                 if record.enabled and record.paired
             )
         )
+        # Cast is opened for every ENABLED device, paired or not: it is a separate
+        # protocol on its own port and knows nothing about the remote pairing.
+        await asyncio.gather(
+            *(self._open_cast(record.id) for record in self._records.values() if record.enabled)
+        )
         await self._start_discovery()
 
     async def stop(self) -> None:
@@ -148,6 +163,7 @@ class DeviceManager:
         for device_id in list(self._connections):
             self._close_connection(device_id)
             self._cancel_pairing(device_id)
+        await asyncio.gather(*(self._close_cast(device_id) for device_id in list(self._connections)))
         await self.drain()
         await asyncio.to_thread(self._registry.close)
 
@@ -253,6 +269,7 @@ class DeviceManager:
 
             self._records[device_id] = record
             self._connections[device_id] = _Connection(_initial_state(record))
+            await self._open_cast(device_id)
             self._refresh_discovery_registration()
             device = self._to_device(record)
             self.event_bus.publish({"type": "device.added", "device": _dump(device)})
@@ -292,10 +309,15 @@ class DeviceManager:
 
         if toggled and not record.enabled:
             self._close_connection(device_id)
-            self._set_state(device_id, connection="disabled", error=None)
-        elif (moved or toggled) and record.enabled and record.paired:
-            self._close_connection(device_id)
-            await self._open_connection(device_id)
+            await self._close_cast(device_id)
+            self._set_state(device_id, connection="disabled", error=None, cast=None, now_playing=None)
+        else:
+            if (moved or toggled) and record.enabled and record.paired:
+                self._close_connection(device_id)
+                await self._open_connection(device_id)
+            if (moved or toggled) and record.enabled:
+                await self._close_cast(device_id)
+                await self._open_cast(device_id)
 
         device = self._to_device(record)
         self.event_bus.publish({"type": "device.updated", "device": _dump(device)})
@@ -310,6 +332,7 @@ class DeviceManager:
         self._record(device_id)
         self._cancel_pairing(device_id)
         self._close_connection(device_id)
+        await self._close_cast(device_id)
         await asyncio.to_thread(self._registry.delete, device_id)
         shutil.rmtree(self.settings.certs_dir / device_id, ignore_errors=True)
         self._records.pop(device_id, None)
@@ -541,6 +564,30 @@ class DeviceManager:
             self._guard(lambda: remote.send_key_command("KEYCODE_VOLUME_DOWN", "SHORT"))
         elif action == "toggle_mute" or (action == "mute" and not muted) or (action == "unmute" and muted):
             self._guard(lambda: remote.send_key_command("KEYCODE_VOLUME_MUTE", "SHORT"))
+        return self._connections[device_id].state
+
+    async def media_control(
+        self, device_id: str, action: str, position: float | None = None
+    ) -> DeviceState:
+        """Drive the television's Google Cast media session.
+
+        Deliberately independent of the remote protocol: transport control runs over the
+        Cast channel, so it works on a TV whose pairing has lapsed and fails on a paired
+        TV that is playing one of its own apps. That second case is the common one.
+
+        :param device_id: MAC-derived device identifier.
+        :param action: ``play``, ``pause``, ``play_pause``, ``stop``, ``seek``, ``next``,
+            or ``previous``.
+        :param position: Target offset in seconds; required for ``seek``.
+        :returns: The device state after the command.
+        :raises DeviceNotFound: If no such device is registered.
+        :raises NoMediaSession: If nothing is casting, or the session refuses the action.
+        """
+        self._record(device_id)
+        session = self._connections[device_id].cast
+        if session is None:
+            raise NoMediaSession("Nothing is casting to this device")
+        await session.control(action, position)
         return self._connections[device_id].state
 
     # -- catalogs ----------------------------------------------------------------------
@@ -879,6 +926,69 @@ class DeviceManager:
         else:
             host = record.host if record else "the TV"
             self._set_state(device_id, connection="unreachable", error=f"Lost the connection to {host}")
+
+    # -- cast --------------------------------------------------------------------------
+
+    async def _open_cast(self, device_id: str) -> None:
+        """Open the held Google Cast channel for a device, if Cast is turned on.
+
+        Every failure is swallowed: Cast enriches the UI with app names, artwork, and
+        transport control, and a television with no reachable Cast receiver must leave key
+        sending, pairing, and the rest of the appliance completely unaffected.
+
+        :param device_id: MAC-derived device identifier.
+        """
+        connection = self._connections.get(device_id)
+        if connection is None or connection.cast is not None or not cast_enabled():
+            return
+        record = self._records[device_id]
+        factory = self._cast_factory or CastSession
+        try:
+            session = factory(
+                device_id,
+                record.host,
+                lambda info, playing: self._on_cast_update(device_id, info, playing),
+                name=record.name,
+            )
+            await session.start()
+        except Exception:
+            LOGGER.info("Cast is unavailable for %s at %s", device_id, record.host, exc_info=True)
+            return
+        connection.cast = session
+
+    async def _close_cast(self, device_id: str) -> None:
+        """Drop the held Cast channel for a device, if any.
+
+        :param device_id: MAC-derived device identifier.
+        """
+        connection = self._connections.get(device_id)
+        if connection is None or connection.cast is None:
+            return
+        session, connection.cast = connection.cast, None
+        try:
+            await session.stop()
+        except Exception:  # teardown must never raise
+            LOGGER.debug("Ignoring error while closing Cast for %s", device_id, exc_info=True)
+
+    def _on_cast_update(
+        self, device_id: str, info: CastInfo | None, playing: NowPlaying | None
+    ) -> None:
+        """Fold a Cast update into the device's live state and push it to subscribers.
+
+        Called on the event loop by :class:`~app.cast.CastSession`, which has already
+        marshalled it off pychromecast's socket thread. Unchanged updates are dropped so
+        the WebSocket is not woken for a status the receiver merely repeated.
+
+        :param device_id: MAC-derived device identifier.
+        :param info: New receiver state, or ``None``.
+        :param playing: New media session, or ``None`` when nothing is casting.
+        """
+        connection = self._connections.get(device_id)
+        if connection is None:
+            return
+        if connection.state.cast == info and connection.state.now_playing == playing:
+            return
+        self._set_state(device_id, cast=info, now_playing=playing)
 
     # -- discovery internals -----------------------------------------------------------
 

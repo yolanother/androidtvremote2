@@ -4,8 +4,9 @@
 # Device, pairing, and control routes for the Android TV Remote appliance. Implements the
 # registry endpoints (list, register by address, fetch, update, delete), the three-step
 # human-in-the-loop pairing flow, and every control endpoint — keys, text entry, app
-# launches, idempotent power, volume, and explicit connect/disconnect. Each route is a thin
-# translation between HTTP and the DeviceManager facade; all behaviour lives in the manager.
+# launches, idempotent power, volume, explicit connect/disconnect, and Google Cast media
+# transport. Each route is a thin translation between HTTP and the DeviceManager facade;
+# all behaviour lives in the manager.
 """Device, pairing, and control routes for the Android TV Remote appliance."""
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from ..models import (
     Device,
     DeviceState,
     LaunchAppRequest,
+    MediaControlRequest,
     RegisterDeviceRequest,
     SendKeyRequest,
     SendTextRequest,
@@ -286,6 +288,37 @@ async def set_volume(device_id: str, body: SetVolumeRequest, manager: ManagerDep
     :returns: The resulting device state.
     """
     return await manager.set_volume(device_id, action=body.action, level=body.level)
+
+
+@router.post(
+    "/{device_id}/media",
+    response_model=DeviceState,
+    summary="Control the Google Cast media session",
+    description=(
+        "Transport and scrubbing over the TV's Cast channel: play, pause, play_pause, "
+        "stop, seek, next, previous. position is required for seek and rejected for "
+        "everything else. Returns 409 no_media_session when nothing is casting, which is "
+        "the common case — Cast publishes a media session only for content cast from a "
+        "phone or browser, so a TV playing one of its own apps has none. Clients should "
+        "hide transport controls while state.now_playing is null rather than calling this."
+    ),
+    responses={
+        400: {"description": "seek without a position, or a position on another action."},
+        404: {"description": "No device with that id."},
+        409: {"description": "Nothing is casting, or the session refuses that action."},
+    },
+)
+async def media_control(
+    device_id: str, body: MediaControlRequest, manager: ManagerDep
+) -> DeviceState:
+    """Run a transport command against the device's Cast media session.
+
+    :param device_id: MAC-derived device identifier.
+    :param body: The action and, for seek, its target offset.
+    :param manager: The device manager.
+    :returns: The resulting device state.
+    """
+    return await manager.media_control(device_id, body.action, body.position)
 
 
 @router.post(

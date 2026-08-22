@@ -3,7 +3,8 @@
 #
 # Shared pytest fixtures for the Android TV Remote appliance server test suite. Puts the
 # server package and the vendored protocol library on sys.path, points every test at an
-# isolated temporary DATA_DIR so no test can touch the real NFS volume, and supplies the
+# isolated temporary DATA_DIR so no test can touch the real NFS volume, turns the Google
+# Cast channel off by default so no test opens a real socket to port 8009, and supplies the
 # FakeRemote double that stands in for AndroidTVRemote so the manager, REST, and
 # WebSocket layers can be exercised without a TV on the network.
 """Shared pytest fixtures for the Android TV Remote appliance server test suite."""
@@ -271,3 +272,16 @@ def paired_client(app_client: Any) -> Any:
     app_client.post(f"/api/devices/{device_id}/pair")
     app_client.post(f"/api/devices/{device_id}/pair/complete", json={"code": "123456"})
     return app_client, device_id
+
+
+@pytest.fixture(autouse=True)
+def cast_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Turn the Google Cast channel off for every test that does not opt back in.
+
+    Cast connects to a real socket on port 8009 and pychromecast reconnects forever on its
+    own thread, so without this the suite dials the fixture host for real and hangs.
+    ``test_cast.py`` re-enables it and substitutes a session double.
+
+    :param monkeypatch: pytest's patching fixture.
+    """
+    monkeypatch.setenv("CAST_ENABLED", "false")
