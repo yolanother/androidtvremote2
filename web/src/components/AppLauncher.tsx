@@ -3,58 +3,42 @@
  * repository root.
  *
  * The app-launcher control surface for the Android TV Remote web UI. Renders the catalog
- * from `GET /api/apps` as a grid of tiles that fire `POST /api/devices/{id}/launch`, and
- * highlights the tile matching the device's live `current_app` so the launcher doubles as
- * a readout of what the TV is showing. Tiles are drawn from each app's initials over a
- * hue derived from its id, because the appliance ships no icon artwork.
+ * from `GET /api/apps` as a grid of real app icons served by the appliance at
+ * `/api/icons/{package}`, each firing `POST /api/devices/{id}/launch`, and highlights the
+ * tile the television reports as foreground — resolved from `current_app` or, when the TV
+ * reports the native-app sentinel, from the Cast receiver's display name — so the launcher
+ * doubles as a readout of what is on screen. An icon that fails to load degrades to the
+ * initials-over-a-derived-hue tile rather than leaving a gap.
  */
 import { useState } from 'react'
 import { Check, Loader2 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import type { AppDescriptor } from '@/lib/api-types'
+import { foregroundApp } from '@/lib/media'
+import type { AppDescriptor, DeviceState } from '@/lib/api-types'
 import type { RemoteControl } from '@/hooks/useRemoteControl'
+import { AppIcon } from '@/components/AppIcon'
 import { ErrorStrip } from '@/components/ui'
-
-/**
- * Derive a stable hue from an app id so every tile has a consistent, distinguishable
- * colour without shipping artwork.
- *
- * @param id - The app's catalog id.
- * @returns A hue in degrees, 0-359.
- */
-function hueFor(id: string): number {
-  let hash = 0
-  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) % 360
-  return hash
-}
-
-/** First letters of the app name, used as the tile glyph. */
-function initials(name: string): string {
-  const words = name.split(/\s+/).filter(Boolean)
-  if (words.length === 0) return '?'
-  if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase()
-  return (words[0]![0]! + words[1]![0]!).toUpperCase()
-}
 
 /**
  * The app-launcher surface.
  *
  * @param props.control - The bound remote control for the active device.
  * @param props.apps - The app catalog loaded from the appliance.
- * @param props.currentApp - The package the TV reports as foreground, or null.
+ * @param props.state - The device's live state, read to highlight the foreground app.
  */
 export function AppLauncher({
   control,
   apps,
-  currentApp,
+  state,
 }: {
   control: RemoteControl
   apps: AppDescriptor[]
-  currentApp: string | null
+  state: DeviceState
 }) {
   const { launch, disabled, error, clearError } = control
   const [launching, setLaunching] = useState<string | null>(null)
+  const foreground = foregroundApp(state, apps).app
 
   if (apps.length === 0) {
     return (
@@ -80,7 +64,7 @@ export function AppLauncher({
       <ErrorStrip message={error} onDismiss={clearError} />
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
         {apps.map((app) => {
-          const isCurrent = currentApp !== null && app.package === currentApp
+          const isCurrent = foreground?.id === app.id
           const busy = launching === app.id
           return (
             <button
@@ -97,18 +81,18 @@ export function AppLauncher({
             >
               <span
                 aria-hidden
-                style={{ backgroundColor: `oklch(0.62 0.16 ${hueFor(app.id)})` }}
                 className={cn(
-                  'relative grid aspect-square w-full place-items-center rounded-2xl',
-                  'text-lg font-semibold text-white shadow-md',
-                  'ring-offset-background transition-shadow',
+                  'ring-offset-background relative block w-full rounded-2xl shadow-md transition-shadow',
                   isCurrent && 'ring-online ring-2 ring-offset-2',
                 )}
               >
-                {busy ? (
-                  <Loader2 className="size-6 animate-spin" />
-                ) : (
-                  initials(app.name)
+                {/* The name is rendered right below the icon, so the image itself is
+                    decorative — giving it alt text would announce every app twice. */}
+                <AppIcon iconUrl={app.icon_url} name={app.name} alt="" seed={app.id} />
+                {busy && (
+                  <span className="absolute inset-0 grid place-items-center rounded-2xl bg-black/50 text-white">
+                    <Loader2 className="size-6 animate-spin" />
+                  </span>
                 )}
                 {isCurrent && !busy && (
                   <span className="bg-online text-background absolute -right-1 -bottom-1 grid size-5 place-items-center rounded-full">
