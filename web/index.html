@@ -3,8 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Android TV Remote</title>
+
+    <!--
+      PWA. Only this entry carries it: embed.html is framed by other people's pages and
+      must stay a plain, always-fresh document, so it gets neither the manifest nor the
+      service-worker registration below. See docs/pwa.md.
+
+      The manifest is manifest.json, not manifest.webmanifest, because the appliance serves
+      static files through Starlette's FileResponse, which falls back to text/plain for any
+      extension Python's mimetypes module does not know -- and .webmanifest is one of them.
+    -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)" />
+
+    <!-- iOS has no manifest-driven install; these are what Add to Home Screen reads. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Remote" />
+
+    <!--
+      Loaded as its own module rather than from a React component: `beforeinstallprompt`
+      fires during page load, long before the settings screen mounts, and a listener
+      attached later would miss it entirely.
+    -->
+    <script type="module" src="/src/pwa/runtime.ts"></script>
   </head>
   <body>
     <div id="root"></div>

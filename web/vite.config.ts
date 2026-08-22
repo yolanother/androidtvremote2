@@ -8,14 +8,31 @@
  * same-origin in development exactly as it does when served from the container. Declares
  * two build entries -- the SPA (index.html) and the standalone iframe remote
  * (embed.html) -- and serves the latter at the extensionless /embed path in dev so the
- * dev server matches how the appliance routes it in production.
+ * dev server matches how the appliance routes it in production. Also generates the
+ * progressive-web-app service worker that precaches the SPA shell while keeping /api,
+ * /healthz, /mcp and the embed view permanently on the network.
  */
 import path from 'node:path'
 import { defineConfig, type ViteDevServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 const API_TARGET = process.env.VITE_API_TARGET ?? 'http://127.0.0.1:7433'
+
+/**
+ * Paths the service worker must never answer from its own cache.
+ *
+ * `/api` carries the device list and every live state snapshot, so a cached response would
+ * show the operator phantom devices, a stale power state, or a volume that never moves —
+ * strictly worse than no offline support at all. `/healthz` is a liveness probe and a
+ * cached 200 would be a lie. `/mcp` is an agent transport. `/embed` is a second Vite entry
+ * that other people's pages iframe; it has to stay a plain, always-fresh document.
+ *
+ * WebSockets (`/api/ws`) never reach a service worker at all — the handshake is not a
+ * `fetch` event — so the socket is unaffected either way.
+ */
+const NEVER_CACHED = [/^\/api\//, /^\/healthz$/, /^\/mcp(\/|$)/, /^\/embed(\/|$)/]
 
 /**
  * Serve the iframe remote at `/embed` during development.
@@ -37,8 +54,45 @@ const embedRoute = {
   },
 }
 
+/**
+ * Build the service worker that makes the SPA installable.
+ *
+ * `manifest: false` and `injectRegister: null` are deliberate. The plugin's own
+ * `transformIndexHtml` pass runs against *every* HTML entry, so letting it inject the
+ * manifest link and the registration script would silently turn `embed.html` into a PWA
+ * too. Instead `index.html` carries both by hand and `embed.html` is left untouched, so
+ * the embed view neither registers a worker nor advertises itself as installable. The
+ * manifest itself is a static file at `public/manifest.json` — see docs/pwa.md for why it
+ * is `.json` and not `.webmanifest`.
+ */
+const pwa = VitePWA({
+  registerType: 'prompt',
+  injectRegister: null,
+  manifest: false,
+  workbox: {
+    // The app shell only. `embed.html` is excluded so a navigation to /embed always
+    // fetches a fresh document; its hashed JS chunks may be shared with the SPA and are
+    // safe to precache because their contents are pinned by the hash in the filename.
+    globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}', 'manifest.json'],
+    globIgnores: ['**/node_modules/**/*', '**/embed.html'],
+    navigateFallback: '/index.html',
+    navigateFallbackDenylist: NEVER_CACHED,
+    // Explicit, even though an unrouted request would fall through to the network anyway:
+    // a reader of this config should not have to know that to trust the appliance.
+    runtimeCaching: NEVER_CACHED.map((urlPattern) => ({
+      urlPattern,
+      handler: 'NetworkOnly' as const,
+    })),
+    cleanupOutdatedCaches: true,
+    // `registerType: 'prompt'` means the new worker waits until the operator accepts the
+    // reload, so it must not claim clients or skip waiting on its own.
+    skipWaiting: false,
+    clientsClaim: false,
+  },
+})
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), embedRoute],
+  plugins: [react(), tailwindcss(), embedRoute, pwa],
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, './src') },
   },
