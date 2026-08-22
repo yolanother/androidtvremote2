@@ -1,0 +1,104 @@
+/*
+ * Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
+ * repository root.
+ *
+ * Global stylesheet and design tokens for the Android TV Remote tray panel. Imports
+ * Tailwind v4, declares a translucent popover palette that follows the OS colour scheme via
+ * prefers-color-scheme (there is no in-app theme switch — a menubar panel should match the
+ * system), keeps the document background fully transparent so the native macOS vibrancy and
+ * Windows Mica materials show through, and supplies a blurred fallback surface for
+ * platforms with no native material. Also sets the drag, selection, and focus-ring rules
+ * that make the panel behave like a native popover rather than a web page.
+ */
+@import 'tailwindcss';
+
+@theme {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-online: var(--online);
+  --color-offline: var(--offline);
+  --color-pairing: var(--pairing);
+  --color-danger: var(--danger);
+  --radius-panel: 14px;
+}
+
+:root {
+  color-scheme: light dark;
+
+  --surface: oklch(0.98 0 0 / 0.72);
+  --surface-raised: oklch(1 0 0 / 0.78);
+  --foreground: oklch(0.16 0 0);
+  --muted: oklch(0.52 0.012 285.9);
+  --border: oklch(0.2 0 0 / 0.12);
+  --accent: oklch(0.21 0.006 285.885);
+  --accent-foreground: oklch(0.985 0 0);
+
+  --online: oklch(0.72 0.19 149);
+  --offline: oklch(0.6 0.016 285.938);
+  --pairing: oklch(0.79 0.16 86);
+  --danger: oklch(0.577 0.245 27.325);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: oklch(0.19 0.005 285.8 / 0.68);
+    --surface-raised: oklch(0.27 0.006 286 / 0.75);
+    --foreground: oklch(0.97 0 0);
+    --muted: oklch(0.7 0.015 286.067);
+    --border: oklch(1 0 0 / 0.12);
+    --accent: oklch(0.93 0.004 286.32);
+    --accent-foreground: oklch(0.21 0.006 285.885);
+    --offline: oklch(0.55 0.016 285.938);
+  }
+}
+
+html,
+body,
+#root {
+  /* min-height, not height: the panel measures its own content and asks the Rust side to
+     resize the window to match, the way a native popover hugs what it contains. */
+  min-height: 100%;
+  margin: 0;
+  /* The window is transparent so the platform material behind it is what the user sees. */
+  background: transparent;
+}
+
+body {
+  font-family:
+    ui-sans-serif, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui,
+    sans-serif;
+  color: var(--foreground);
+  /* A remote is a control surface, not a document: nothing here should be selectable and
+     an accidental swipe must not rubber-band the panel. */
+  user-select: none;
+  -webkit-user-select: none;
+  overscroll-behavior: none;
+  overflow: hidden;
+}
+
+/* The fallback surface. On macOS and Windows 11 the native material behind the transparent
+   window does the real work and this sits on top of it as a thin tint; everywhere else
+   (Linux, Windows 10 without acrylic) the blur is what makes the panel look inset. */
+.panel-surface {
+  background: var(--surface);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+}
+
+/* Inputs are the one place text selection has to work. */
+input {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+:focus-visible {
+  outline: 2px solid var(--online);
+  outline-offset: 2px;
+}
