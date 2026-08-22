@@ -62,8 +62,9 @@ const embedRoute = {
  * manifest link and the registration script would silently turn `embed.html` into a PWA
  * too. Instead `index.html` carries both by hand and `embed.html` is left untouched, so
  * the embed view neither registers a worker nor advertises itself as installable. The
- * manifest itself is a static file at `public/manifest.json` — see docs/pwa.md for why it
- * is `.json` and not `.webmanifest`.
+ * manifest itself is a hand-written static file at `public/manifest.webmanifest`; the
+ * appliance serves it as `application/manifest+json` because Python's built-in mimetypes
+ * table knows that extension even in a container with no /etc/mime.types (verified).
  */
 const pwa = VitePWA({
   registerType: 'prompt',
@@ -73,7 +74,7 @@ const pwa = VitePWA({
     // The app shell only. `embed.html` is excluded so a navigation to /embed always
     // fetches a fresh document; its hashed JS chunks may be shared with the SPA and are
     // safe to precache because their contents are pinned by the hash in the filename.
-    globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}', 'manifest.json'],
+    globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2,webmanifest}'],
     globIgnores: ['**/node_modules/**/*', '**/embed.html'],
     navigateFallback: '/index.html',
     navigateFallbackDenylist: NEVER_CACHED,
