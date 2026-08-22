@@ -217,17 +217,56 @@ def test_cache_hit_is_served_without_touching_the_network(app_client: Any) -> No
     assert network.calls == []
 
 
-def test_a_hand_pinned_svg_wins_over_every_other_rung(app_client: Any) -> None:
-    """Dropping a file into the cache directory is the documented way to pin an icon."""
-    use_network(app_client, FakeNetwork(netflix_routes()))
-    icons_dir = Path(app_client.app.state.settings.data_dir) / "icons"
-    icons_dir.mkdir(parents=True)
-    (icons_dir / "com.netflix.ninja.svg").write_bytes(b"<svg>pinned</svg>")
+def pin_icon(client: Any, package: str, data: bytes, extension: str = "svg") -> Path:
+    """Hand-pin an icon the way the docs tell an operator to.
+
+    :param client: The app's test client.
+    :param package: The package id to pin an icon for.
+    :param data: The file's bytes.
+    :param extension: The file extension to pin under.
+    :returns: The path the file was written to.
+    """
+    pinned = Path(client.app.state.settings.data_dir) / "icons" / "pinned"
+    pinned.mkdir(parents=True, exist_ok=True)
+    path = pinned / f"{package}.{extension}"
+    path.write_bytes(data)
+    return path
+
+
+def test_a_hand_pinned_icon_wins_over_every_other_rung(app_client: Any) -> None:
+    """Dropping a file into the pinned directory is the documented way to fix an icon."""
+    network = FakeNetwork(netflix_routes())
+    use_network(app_client, network)
+    pin_icon(app_client, "com.netflix.ninja", b"<svg>pinned</svg>")
 
     response = app_client.get("/api/icons/com.netflix.ninja")
 
     assert response.content == b"<svg>pinned</svg>"
     assert response.headers["content-type"] == "image/svg+xml"
+    assert response.headers["x-icon-source"] == "pinned"
+    assert network.calls == []
+
+
+def test_a_pin_outranks_an_already_downloaded_icon(app_client: Any) -> None:
+    """Pinning fixes a wrong icon that is already cached, without clearing the cache."""
+    use_network(app_client, FakeNetwork(netflix_routes()))
+    assert app_client.get("/api/icons/com.netflix.ninja").content == FAKE_PNG
+
+    pin_icon(app_client, "com.netflix.ninja", b"<svg>pinned</svg>")
+
+    assert app_client.get("/api/icons/com.netflix.ninja").content == b"<svg>pinned</svg>"
+
+
+def test_refresh_does_not_delete_a_hand_pinned_icon(app_client: Any) -> None:
+    """Refreshing must not silently discard the icon an operator deliberately chose."""
+    use_network(app_client, FakeNetwork(netflix_routes()))
+    path = pin_icon(app_client, "com.netflix.ninja", b"<svg>pinned</svg>")
+
+    response = app_client.get("/api/icons/com.netflix.ninja?refresh=1")
+
+    assert path.is_file(), "the pin survives a refresh"
+    assert response.content == b"<svg>pinned</svg>"
+    assert response.headers["x-icon-source"] == "pinned"
 
 
 # -- rung 2: the Play Store ----------------------------------------------------------

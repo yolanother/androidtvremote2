@@ -71,9 +71,13 @@ FALLBACK_MAX_AGE = 300
 #: each. SVG is deliberately absent: a remote SVG served back from the appliance's own
 #: origin would be stored XSS, and the Play Store serves raster art anyway.
 DOWNLOAD_MEDIA_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
+#: Subdirectory of the cache holding hand-pinned icons. Kept separate from the cache proper
+#: so that ``?refresh=1`` cannot delete an operator's deliberate override: refresh clears
+#: what was downloaded, and a pin outranks everything until it is removed by hand.
+PINNED_DIRNAME = "pinned"
 #: Cache-file extensions recognised on read, mapped to the type they are served as. Wider
 #: than :data:`DOWNLOAD_MEDIA_TYPES` because an operator may pin an icon by hand by dropping
-#: a file into the cache directory, and a hand-placed file is trusted local content.
+#: a file into the pinned directory, and a hand-placed file is trusted local content.
 CACHE_EXTENSIONS = {
     "png": "image/png",
     "jpg": "image/jpeg",
@@ -351,8 +355,9 @@ class ResolvedIcon(NamedTuple):
     media_type: str
     #: Strong entity tag derived from the bytes, for conditional requests.
     etag: str
-    #: Which rung of the fallback chain produced this: ``cache``, ``play``, ``glyph``,
-    #: or ``tile``. Surfaced as ``X-Icon-Source`` so a wrong icon can be diagnosed.
+    #: Which rung of the fallback chain produced this: ``pinned``, ``cache``, ``play``,
+    #: ``glyph``, or ``tile``. Surfaced as ``X-Icon-Source`` so a wrong icon can be
+    #: diagnosed without guesswork.
     source: str
     #: ``Cache-Control`` max-age appropriate to :attr:`source`.
     max_age: int
@@ -595,14 +600,14 @@ class IconService:
 
         cached = await asyncio.to_thread(self._read_cache, package)
         if cached is not None:
-            return _resolved(cached[0], cached[1], "cache", CACHED_MAX_AGE)
+            return _resolved(*cached, CACHED_MAX_AGE)
 
         async with self._lock_for(package):
             # Re-checked under the lock: whoever held it before us may have just filled the
             # cache, and refetching would waste an outbound request per queued caller.
             cached = await asyncio.to_thread(self._read_cache, package)
             if cached is not None:
-                return _resolved(cached[0], cached[1], "cache", CACHED_MAX_AGE)
+                return _resolved(*cached, CACHED_MAX_AGE)
             if not self._recently_failed(package):
                 downloaded = await self._fetch_store_icon(package)
                 if downloaded is not None:
@@ -672,18 +677,29 @@ class IconService:
         """
         return self.cache_dir / f"{package}.{extension}"
 
-    def _read_cache(self, package: str) -> tuple[bytes, str] | None:
-        """Read a cached icon from the data volume. Blocking; called on a worker thread.
+    @property
+    def pinned_dir(self) -> Path:
+        """Directory holding hand-pinned icons, which outrank everything else.
+
+        :returns: ``<data_dir>/icons/pinned``.
+        """
+        return self.cache_dir / PINNED_DIRNAME
+
+    def _read_cache(self, package: str) -> tuple[bytes, str, str] | None:
+        """Read a pinned or cached icon from the data volume. Blocking; on a worker thread.
+
+        The pinned directory is searched first, so an operator's deliberate override always
+        beats whatever was downloaded, and it survives ``?refresh=1``.
 
         :param package: A validated Android package id.
-        :returns: ``(bytes, content type)``, or ``None`` when nothing is cached.
+        :returns: ``(bytes, content type, source)``, or ``None`` when nothing is stored.
         """
-        for extension, media_type in CACHE_EXTENSIONS.items():
-            path = self._cache_path(package, extension)
-            try:
-                return path.read_bytes(), media_type
-            except OSError:
-                continue
+        for directory, source in ((self.pinned_dir, "pinned"), (self.cache_dir, "cache")):
+            for extension, media_type in CACHE_EXTENSIONS.items():
+                try:
+                    return (directory / f"{package}.{extension}").read_bytes(), media_type, source
+                except OSError:
+                    continue
         return None
 
     def _write_cache(self, package: str, data: bytes, media_type: str) -> None:
@@ -707,7 +723,10 @@ class IconService:
             LOGGER.warning("Could not cache the icon for %s at %s", package, path, exc_info=True)
 
     def _purge(self, package: str) -> None:
-        """Drop every cached artefact for one package. Blocking; called on a worker thread.
+        """Drop the downloaded artefacts for one package. Blocking; on a worker thread.
+
+        Anything under :attr:`pinned_dir` is deliberately left alone: refreshing a wrong
+        icon must not silently discard the icon an operator chose by hand.
 
         :param package: A validated Android package id.
         """
