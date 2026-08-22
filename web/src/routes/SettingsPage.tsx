@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import { getToken, setToken } from '@/lib/api'
 import { useTheme, type Theme } from '@/lib/prefs'
 import type { HealthResponse } from '@/lib/api-types'
+import { InstallSection } from '@/pwa/InstallSection'
 
 /** Whether the appliance rejects unauthenticated requests. */
 type AuthState = 'checking' | 'required' | 'open'
@@ -153,6 +154,8 @@ export function SettingsPage() {
           </span>
         </div>
       </section>
+
+      <InstallSection />
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">Appliance</h2>

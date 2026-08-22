@@ -6,7 +6,9 @@
  * in the remote store provider — which owns the single appliance WebSocket every screen
  * reads from — and routes between the remote surface for one television, the device
  * dashboard, and settings. The index route resolves to whichever television was last used,
- * falling back to the first registered one and then to the dashboard.
+ * falling back to the first registered one and then to the dashboard. Also mounts the
+ * service-worker update prompt, which sits outside the router so a waiting update is
+ * offered on every screen.
  */
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
 
@@ -16,6 +18,7 @@ import { SettingsPage } from '@/routes/SettingsPage'
 import { RemoteProvider } from '@/state/RemoteProvider'
 import { getLastDevice } from '@/lib/prefs'
 import { useRemote } from '@/state/store'
+import { UpdatePrompt } from '@/pwa/UpdatePrompt'
 
 /**
  * Resolve the index route to a television: the one last used if it is still registered,
@@ -43,6 +46,7 @@ function IndexRedirect() {
 export default function App() {
   return (
     <RemoteProvider>
+      <UpdatePrompt />
       <Router>
         <Routes>
           <Route path="/" element={<IndexRedirect />} />
