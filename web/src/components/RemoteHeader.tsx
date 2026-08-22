@@ -3,7 +3,7 @@
  * repository root.
  *
  * The persistent header of the Android TV Remote web UI. Keeps the active television's
- * name, connection state, and current app permanently visible — a remote whose presses are
+ * name, connection state, and the app it is showing permanently visible — a remote whose presses are
  * silently going nowhere is worse than one that is obviously offline — and turns the name
  * into the device switcher, a sheet listing every registered TV with its live status plus
  * routes to add or manage devices. Also announces connection changes through a polite live
@@ -15,6 +15,7 @@ import { Check, ChevronDown, Plus, Settings, Sliders, Tv } from 'lucide-react'
 
 import { Btn, LiveRegion, Modal, StatusDot } from '@/components/ui'
 import { cn } from '@/lib/utils'
+import { foregroundApp } from '@/lib/media'
 import type { Device } from '@/lib/api-types'
 import { useRemote } from '@/state/store'
 
@@ -37,8 +38,9 @@ export function RemoteHeader({
   const { state } = useRemote()
   const [switcherOpen, setSwitcherOpen] = useState(false)
 
-  const app = device.state.current_app
-  const appName = app ? (state.apps.find((a) => a.package === app)?.name ?? app) : null
+  // Resolved rather than read straight off `current_app`, which is the opaque
+  // `AndroidNativeApp` sentinel whenever the television is driven by its own remote.
+  const appName = foregroundApp(device.state, state.apps).name
 
   return (
     <header className="flex items-center gap-2 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 lg:px-0 lg:pt-0">

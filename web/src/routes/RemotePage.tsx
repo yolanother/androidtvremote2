@@ -3,7 +3,7 @@
  * repository root.
  *
  * The main remote screen of the Android TV Remote web UI. Composes the persistent header,
- * the swappable stage (D-pad, touchpad, text, or app launcher), and the fixed deck of
+ * the swappable stage (D-pad, touchpad, text, app launcher, or now playing), and the fixed deck of
  * navigation, transport, and volume keys into a frame that fills the viewport and never
  * scrolls, so a swipe on the touchpad cannot rubber-band the page. Binds the physical
  * keyboard to the same key paths, replaces the controls with an actionable re-pair prompt
@@ -18,6 +18,7 @@ import { AppLauncher } from '@/components/AppLauncher'
 import { Btn, ErrorStrip } from '@/components/ui'
 import { DPad } from '@/components/DPad'
 import { Deck } from '@/components/Deck'
+import { NowPlaying } from '@/components/NowPlaying'
 import { PairingDialog } from '@/components/PairingDialog'
 import { RemoteHeader } from '@/components/RemoteHeader'
 import { TextEntry } from '@/components/TextEntry'
@@ -95,11 +96,10 @@ export function RemotePage() {
               {surface === 'touch' && <Touchpad control={control} />}
               {surface === 'text' && <TextEntry control={control} />}
               {surface === 'apps' && (
-                <AppLauncher
-                  control={control}
-                  apps={state.apps}
-                  currentApp={device.state.current_app}
-                />
+                <AppLauncher control={control} apps={state.apps} state={device.state} />
+              )}
+              {surface === 'media' && (
+                <NowPlaying device={device} apps={state.apps} control={control} />
               )}
             </div>
           )}

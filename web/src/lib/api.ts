@@ -17,6 +17,7 @@ import type {
   DiscoveredDevice,
   KeyDescriptor,
   KeyDirection,
+  MediaAction,
   StartPairingResponse,
   VolumeAction,
 } from './api-types'
@@ -180,6 +181,12 @@ export const api = {
 
   launchApp: (id: string, app: string) =>
     request<void>(`/api/devices/${id}/launch`, { method: 'POST', body: { app } }),
+
+  media: (id: string, action: MediaAction, position?: number) =>
+    request<DeviceState>(`/api/devices/${id}/media`, {
+      method: 'POST',
+      body: { action, ...(position === undefined ? {} : { position }) },
+    }),
 
   setPower: (id: string, on: boolean | null) =>
     request<DeviceState>(`/api/devices/${id}/power`, { method: 'POST', body: { on } }),

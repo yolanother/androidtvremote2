@@ -14,7 +14,7 @@ import { useSyncExternalStore } from 'react'
 export type Theme = 'light' | 'dark' | 'system'
 
 /** Which control surface the remote shows in its stage area. */
-export type Surface = 'dpad' | 'touch' | 'text' | 'apps'
+export type Surface = 'dpad' | 'touch' | 'text' | 'apps' | 'media'
 
 const listeners = new Set<() => void>()
 

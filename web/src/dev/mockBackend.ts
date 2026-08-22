@@ -5,18 +5,83 @@
  * Development-only stub of the Android TV Remote appliance, used to exercise the web UI
  * without a running backend. Provides a fake WebSocket that emits the contract's snapshot
  * and delta frames and a `fetch` interceptor that answers every `/api` route with
- * plausible data, including a working pairing handshake and volume/power echoes. It is
+ * plausible data, including a working pairing handshake, volume/power echoes, and a Cast
+ * media session that responds to seek and transport. The registry deliberately covers all
+ * four now-playing shapes — a television running a native app with no media session at
+ * all (the common case), a seekable video session with artwork, an audio session with no
+ * artwork that refuses to seek, and a live stream with no duration that refuses to pause — so the empty path is exercised rather than assumed. It
+ * is
  * loaded lazily and only when `VITE_MOCK=1` in a dev build, so it is never part of the
  * production bundle or the default dev experience.
  */
 import type {
   AppDescriptor,
+  CastInfo,
   Device,
   DeviceState,
   DiscoveredDevice,
   KeyDescriptor,
+  MediaAction,
+  NowPlaying,
+  PlayerState,
   ServerEvent,
 } from '@/lib/api-types'
+import { playheadAt } from '@/lib/media'
+
+/** Inline an SVG as a data URI, so the stub needs no files and no network. */
+function svg(markup: string): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(markup)}`
+}
+
+/** Stand-in for `/api/icons/{package}`, which the real appliance serves. */
+function icon(glyph: string, fill: string): string {
+  return svg(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="${fill}"/>` +
+      `<text x="48" y="64" font-family="system-ui,sans-serif" font-size="48" font-weight="700" fill="#fff" text-anchor="middle">${glyph}</text></svg>`,
+  )
+}
+
+/** Stand-in for a poster served from a content CDN. */
+const ARTWORK = svg(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">` +
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#160c2e"/><stop offset="0.6" stop-color="#6d1030"/><stop offset="1" stop-color="#e0243c"/></linearGradient></defs>` +
+    `<rect width="640" height="360" fill="url(#g)"/>` +
+    `<text x="320" y="176" font-family="system-ui,sans-serif" font-size="44" font-weight="800" letter-spacing="6" fill="#fff" text-anchor="middle">STRANGER</text>` +
+    `<text x="320" y="226" font-family="system-ui,sans-serif" font-size="44" font-weight="800" letter-spacing="6" fill="#fff" text-anchor="middle">THINGS</text></svg>`,
+)
+
+/** Build a Cast receiver readout with the fields the UI reads. */
+function cast(partial: Partial<CastInfo>): CastInfo {
+  return {
+    app_id: 'CA5E8412',
+    display_name: null,
+    status_text: null,
+    volume_level: 0.24,
+    muted: false,
+    available: true,
+    ...partial,
+  }
+}
+
+/** Build a media session, defaulted to a seekable video with artwork. */
+function session(partial: Partial<NowPlaying>): NowPlaying {
+  return {
+    title: null,
+    subtitle: null,
+    album: null,
+    season: null,
+    episode: null,
+    content_type: 'video/mp4',
+    player_state: 'PLAYING',
+    duration: 4680,
+    position: 132.5,
+    position_at: new Date().toISOString(),
+    images: [ARTWORK],
+    can_pause: true,
+    can_seek: true,
+    ...partial,
+  }
+}
 
 /** Build a device state with sensible defaults for the fields the TV has not reported. */
 function state(partial: Partial<DeviceState>): DeviceState {
@@ -45,7 +110,13 @@ const devices: Device[] = [
     paired: true,
     enabled: true,
     created_at: '2026-08-01T18:04:00Z',
-    state: state({ current_app: 'com.netflix.ninja' }),
+    // The common case, verified against real hardware: the television is driving itself,
+    // so the remote protocol reports the native-app sentinel and Cast names the app but
+    // publishes no media session.
+    state: state({
+      current_app: 'AndroidNativeApp',
+      cast: cast({ display_name: 'Netflix', volume_level: 0.24 }),
+    }),
   },
   {
     id: '112233445566',
@@ -83,6 +154,86 @@ const devices: Device[] = [
   },
 ]
 
+const extraDevices: Device[] = [
+  {
+    id: '778899aabbcc',
+    name: 'Playroom Display',
+    host: '192.168.1.77',
+    mac: '77:88:99:aa:bb:cc',
+    mdns_name: 'Playroom._androidtvremote2._tcp.local.',
+    model: 'Chromecast with Google TV',
+    paired: true,
+    enabled: true,
+    created_at: '2026-08-04T11:20:00Z',
+    state: state({
+      current_app: 'com.netflix.ninja',
+      cast: cast({ display_name: 'Netflix', status_text: 'Casting from Pixel 9' }),
+      now_playing: session({
+        title: 'Stranger Things',
+        subtitle: 'Chapter One: MADMAX',
+        season: 4,
+        episode: 1,
+      }),
+    }),
+  },
+  {
+    id: '99aabbccddee',
+    name: 'Studio Speaker',
+    host: '192.168.1.91',
+    mac: '99:aa:bb:cc:dd:ee',
+    mdns_name: 'Studio._androidtvremote2._tcp.local.',
+    model: 'Chromecast Audio',
+    paired: true,
+    enabled: true,
+    created_at: '2026-08-05T08:02:00Z',
+    // An audio session that publishes no artwork and refuses to seek — both happen, and
+    // both have to look deliberate rather than broken.
+    state: state({
+      current_app: 'com.spotify.tv.android',
+      cast: cast({ app_id: 'CC32E753', display_name: 'Spotify', status_text: 'Casting' }),
+      now_playing: session({
+        title: 'Everything In Its Right Place',
+        subtitle: 'Radiohead',
+        album: 'Kid A',
+        content_type: 'audio/mpeg',
+        duration: 251,
+        position: 64,
+        images: [],
+        can_seek: false,
+      }),
+    }),
+  },
+  {
+    id: 'bbccddeeff00',
+    name: 'Patio Radio',
+    host: '192.168.1.104',
+    mac: 'bb:cc:dd:ee:ff:00',
+    mdns_name: 'Patio._androidtvremote2._tcp.local.',
+    model: 'Chromecast Audio',
+    paired: true,
+    enabled: true,
+    created_at: '2026-08-06T17:45:00Z',
+    // A live stream: no duration to draw a bar against, and a session that accepts
+    // neither pause nor seek, so both controls have to say so rather than 409.
+    state: state({
+      current_app: 'com.spotify.tv.android',
+      cast: cast({ app_id: 'CC32E753', display_name: 'Spotify', status_text: 'Live' }),
+      now_playing: session({
+        title: 'BBC Radio 6 Music',
+        subtitle: 'Now: Radiohead — Everything In Its Right Place',
+        content_type: 'audio/aac',
+        duration: null,
+        position: 0,
+        images: [],
+        can_pause: false,
+        can_seek: false,
+      }),
+    }),
+  },
+]
+
+devices.push(...extraDevices)
+
 const discovered: DiscoveredDevice[] = [
   {
     mdns_name: 'BRAVIA 4K GB._androidtvremote2._tcp.local.',
@@ -116,12 +267,12 @@ const keys: KeyDescriptor[] = [
 ]
 
 const apps: AppDescriptor[] = [
-  { id: 'netflix', name: 'Netflix', package: 'com.netflix.ninja', deep_link: null, launch: 'com.netflix.ninja', icon: null, icon_url: '/api/icons/com.netflix.ninja' },
-  { id: 'youtube', name: 'YouTube', package: 'com.google.android.youtube.tv', deep_link: null, launch: 'com.google.android.youtube.tv', icon: null, icon_url: '/api/icons/com.google.android.youtube.tv' },
+  { id: 'netflix', name: 'Netflix', package: 'com.netflix.ninja', deep_link: null, launch: 'com.netflix.ninja', icon: null, icon_url: icon('N', '#e50914') },
+  { id: 'youtube', name: 'YouTube', package: 'com.google.android.youtube.tv', deep_link: null, launch: 'com.google.android.youtube.tv', icon: null, icon_url: icon('YT', '#ff0033') },
   { id: 'primevideo', name: 'Prime Video', package: 'com.amazon.amazonvideo.livingroom', deep_link: null, launch: 'com.amazon.amazonvideo.livingroom', icon: null, icon_url: '/api/icons/com.amazon.amazonvideo.livingroom' },
-  { id: 'disneyplus', name: 'Disney+', package: 'com.disney.disneyplus', deep_link: null, launch: 'com.disney.disneyplus', icon: null, icon_url: '/api/icons/com.disney.disneyplus' },
+  { id: 'disneyplus', name: 'Disney+', package: 'com.disney.disneyplus', deep_link: null, launch: 'com.disney.disneyplus', icon: null, icon_url: icon('D+', '#0c1c4a') },
   { id: 'plex', name: 'Plex', package: 'com.plexapp.android', deep_link: null, launch: 'com.plexapp.android', icon: null, icon_url: '/api/icons/com.plexapp.android' },
-  { id: 'spotify', name: 'Spotify', package: 'com.spotify.tv.android', deep_link: null, launch: 'com.spotify.tv.android', icon: null, icon_url: '/api/icons/com.spotify.tv.android' },
+  { id: 'spotify', name: 'Spotify', package: 'com.spotify.tv.android', deep_link: null, launch: 'com.spotify.tv.android', icon: null, icon_url: icon('S', '#1db954') },
   { id: 'jellyfin', name: 'Jellyfin', package: 'org.jellyfin.androidtv', deep_link: null, launch: 'org.jellyfin.androidtv', icon: null, icon_url: '/api/icons/org.jellyfin.androidtv' },
   { id: 'twitch', name: 'Twitch', package: 'tv.twitch.android.app', deep_link: null, launch: 'tv.twitch.android.app', icon: null, icon_url: '/api/icons/tv.twitch.android.app' },
 ]
@@ -250,6 +401,50 @@ async function route(path: string, init: RequestInit | undefined): Promise<Respo
             : action === 'down'
               ? Math.max((volume.level ?? 0) - 1, 0)
               : ((body.level as number | undefined) ?? volume.level),
+      },
+    }
+    echo()
+    return json(device.state)
+  }
+
+  if (path.endsWith('/media')) {
+    const playing = device.state.now_playing
+    // The real appliance answers 409 here whenever nothing is casting, which is exactly
+    // what the UI must avoid provoking by hiding its transport in that state.
+    if (!playing) {
+      return json(
+        { error: { code: 'no_media_session', message: 'Nothing is casting to this TV.' } },
+        409,
+      )
+    }
+    const action = body.action as MediaAction
+    const playerState: PlayerState =
+      action === 'play'
+        ? 'PLAYING'
+        : action === 'pause'
+          ? 'PAUSED'
+          : action === 'stop'
+            ? 'IDLE'
+            : action === 'play_pause'
+              ? playing.player_state === 'PLAYING'
+                ? 'PAUSED'
+                : 'PLAYING'
+              : playing.player_state
+    const position =
+      action === 'seek'
+        ? Number(body.position ?? 0)
+        : action === 'next' || action === 'previous'
+          ? 0
+          : playheadAt(playing, Date.now())
+    const step = action === 'next' ? 1 : action === 'previous' ? -1 : 0
+    device.state = {
+      ...device.state,
+      now_playing: {
+        ...playing,
+        player_state: playerState,
+        position,
+        position_at: new Date().toISOString(),
+        episode: playing.episode === null ? null : Math.max(1, playing.episode + step),
       },
     }
     echo()

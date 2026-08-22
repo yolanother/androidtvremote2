@@ -4,7 +4,7 @@
  *
  * The fixed bottom deck of the Android TV Remote web UI: the navigation and transport keys,
  * the segmented volume pill, and the tab bar that switches the stage between the D-pad,
- * touchpad, text, and app surfaces. The deck never changes as the stage above it does, so
+ * touchpad, text, app, and now-playing surfaces. The deck never changes as the stage above it does, so
  * back, home, play/pause, and volume stay exactly where the user's thumb left them —
  * the single most important layout rule taken from the Google TV and SmartThings remotes.
  */
@@ -15,6 +15,7 @@ import {
   Keyboard,
   Menu,
   Minus,
+  MonitorPlay,
   Play,
   Plus,
   Power,
@@ -32,12 +33,13 @@ import type { Surface } from '@/lib/prefs'
 import type { DeviceState } from '@/lib/api-types'
 import type { RemoteControl } from '@/hooks/useRemoteControl'
 
-/** The four stage surfaces, in tab order. */
+/** The five stage surfaces, in tab order. */
 const SURFACES: Array<{ id: Surface; label: string; Icon: typeof Home }> = [
   { id: 'dpad', label: 'D-pad', Icon: Squircle },
   { id: 'touch', label: 'Touchpad', Icon: Grid3x3 },
   { id: 'text', label: 'Text', Icon: Keyboard },
   { id: 'apps', label: 'Apps', Icon: Play },
+  { id: 'media', label: 'Playing', Icon: MonitorPlay },
 ]
 
 /**
@@ -159,7 +161,7 @@ export function Deck({
 
       {/* Surface tabs. Visible rather than tucked into an overflow menu — see
           docs/design/ui.md, "Deliberate deviations". */}
-      <div role="tablist" aria-label="Control surface" className="bg-secondary grid grid-cols-4 gap-1 rounded-2xl p-1">
+      <div role="tablist" aria-label="Control surface" className="bg-secondary grid grid-cols-5 gap-1 rounded-2xl p-1">
         {SURFACES.map(({ id, label, Icon }) => {
           const selected = surface === id
           return (
