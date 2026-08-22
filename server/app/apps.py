@@ -3,8 +3,9 @@
 #
 # App catalog for the Android TV Remote appliance. Defines the launchable apps served by
 # GET /api/apps, each carrying a stable slug, a display name, the Android package id, an
-# optional deep-link base URL, and the launch target handed verbatim to the protocol
-# library's send_launch_app_command. Also provides the resolver that maps a catalog slug
+# optional deep-link base URL, the launch target handed verbatim to the protocol library's
+# send_launch_app_command, and the appliance-served icon endpoint for the app's artwork.
+# Also provides the resolver that maps a catalog slug
 # to its launch target while passing raw package ids and deep-link URLs straight through,
 # so the launch endpoint is never limited to the curated list.
 """App catalog for the Android TV Remote appliance."""
@@ -13,8 +14,8 @@ from __future__ import annotations
 
 from .models import AppDescriptor
 
-#: Apps the UI offers as one-tap launches. ``launch`` is passed verbatim to the TV.
-APPS: tuple[AppDescriptor, ...] = (
+#: Catalog entries before ``icon_url`` is derived. Use :data:`APPS` instead.
+_CATALOG: tuple[AppDescriptor, ...] = (
     AppDescriptor(
         id="netflix",
         name="Netflix",
@@ -79,6 +80,14 @@ APPS: tuple[AppDescriptor, ...] = (
         launch="com.wbd.stream",
         icon="hbo-max",
     ),
+)
+
+#: Apps the UI offers as one-tap launches. ``launch`` is passed verbatim to the TV, and
+#: ``icon_url`` is derived here rather than written out per entry so the path and the
+#: package id can never drift apart.
+APPS: tuple[AppDescriptor, ...] = tuple(
+    app.model_copy(update={"icon_url": f"/api/icons/{app.package}"}) if app.package else app
+    for app in _CATALOG
 )
 
 _APPS_BY_ID: dict[str, AppDescriptor] = {app.id: app for app in APPS}
