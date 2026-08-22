@@ -178,7 +178,9 @@ function SessionView({
   const playhead = playheadAt(session, now)
   const shown = scrub ?? playhead
   const duration = session.duration
-  const seekable = session.can_seek && duration !== null && duration > 0
+  // A live stream reports no duration, so there is no bar to draw — only elapsed time.
+  const measured = duration !== null && duration > 0
+  const seekable = session.can_seek && measured
   const playing = session.player_state === 'PLAYING'
 
   // Music gets a square sleeve, video a 16:9 frame. Falling back on `album` catches the
@@ -230,8 +232,7 @@ function SessionView({
         </p>
       </div>
 
-      {/* Progress. The bar is always rendered so the layout does not change when a
-          television reports a duration a moment after it starts playing. */}
+      {/* Progress. */}
       <div className="flex w-full flex-col gap-1">
         {seekable ? (
           <input
@@ -248,7 +249,7 @@ function SessionView({
             onKeyUp={() => scrub !== null && onSend('seek', scrub)}
             className="accent-foreground h-1.5 w-full cursor-pointer disabled:cursor-not-allowed"
           />
-        ) : (
+        ) : measured ? (
           <div
             role="progressbar"
             aria-label="Playback position"
@@ -260,13 +261,13 @@ function SessionView({
           >
             <div
               className="bg-foreground/70 h-full rounded-full transition-[width] duration-500 ease-linear"
-              style={{ width: duration ? `${Math.min(100, (shown / duration) * 100)}%` : '0%' }}
+              style={{ width: `${Math.min(100, (shown / duration!) * 100)}%` }}
             />
           </div>
-        )}
+        ) : null}
         <div className="text-muted-foreground flex justify-between text-[0.6875rem] tabular-nums">
           <span>{formatTime(shown)}</span>
-          <span>{duration === null ? '' : formatTime(duration)}</span>
+          <span>{measured ? formatTime(duration) : 'Live'}</span>
         </div>
       </div>
 
@@ -284,7 +285,8 @@ function SessionView({
                 ? 'Pause'
                 : 'Play'
           }
-          tone="accent"
+          // Only a usable play/pause reads as the lit key; a refused one is a dead key.
+          tone={session.can_pause ? 'accent' : 'default'}
           disabled={disabled || !session.can_pause}
           onClick={() => onSend('play_pause')}
           className="h-12"

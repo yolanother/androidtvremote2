@@ -7,9 +7,9 @@
  * and delta frames and a `fetch` interceptor that answers every `/api` route with
  * plausible data, including a working pairing handshake, volume/power echoes, and a Cast
  * media session that responds to seek and transport. The registry deliberately covers all
- * three now-playing shapes — a television running a native app with no media session at
- * all (the common case), a seekable video session with artwork, and an audio session with
- * no artwork that refuses to seek — so the empty path is exercised rather than assumed. It
+ * four now-playing shapes — a television running a native app with no media session at
+ * all (the common case), a seekable video session with artwork, an audio session with no
+ * artwork that refuses to seek, and a live stream with no duration that refuses to pause — so the empty path is exercised rather than assumed. It
  * is
  * loaded lazily and only when `VITE_MOCK=1` in a dev build, so it is never part of the
  * production bundle or the default dev experience.
@@ -199,6 +199,33 @@ const extraDevices: Device[] = [
         duration: 251,
         position: 64,
         images: [],
+        can_seek: false,
+      }),
+    }),
+  },
+  {
+    id: 'bbccddeeff00',
+    name: 'Patio Radio',
+    host: '192.168.1.104',
+    mac: 'bb:cc:dd:ee:ff:00',
+    mdns_name: 'Patio._androidtvremote2._tcp.local.',
+    model: 'Chromecast Audio',
+    paired: true,
+    enabled: true,
+    created_at: '2026-08-06T17:45:00Z',
+    // A live stream: no duration to draw a bar against, and a session that accepts
+    // neither pause nor seek, so both controls have to say so rather than 409.
+    state: state({
+      current_app: 'com.spotify.tv.android',
+      cast: cast({ app_id: 'CC32E753', display_name: 'Spotify', status_text: 'Live' }),
+      now_playing: session({
+        title: 'BBC Radio 6 Music',
+        subtitle: 'Now: Radiohead — Everything In Its Right Place',
+        content_type: 'audio/aac',
+        duration: null,
+        position: 0,
+        images: [],
+        can_pause: false,
         can_seek: false,
       }),
     }),
