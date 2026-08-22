@@ -386,6 +386,39 @@ def test_the_spa_is_served_with_deep_link_fallback(tmp_path: Any, monkeypatch: A
         assert client.get("/healthz").json()["status"] == "ok"
 
 
+def test_an_unmatched_api_path_is_a_json_404_not_the_spa_shell(
+    tmp_path: Any, monkeypatch: Any
+) -> None:
+    """An unmatched /api path must not fall through to the single-page-app catch-all.
+
+    Without this guard the catch-all answered every mistyped or malformed API path with
+    200 text/html -- the app shell -- which any status-code-checking client reads as
+    success. Home Assistant, a shell script, or an agent over MCP would all be misled, and
+    a rejected /api/icons/<traversal attempt> looked like a served icon.
+    """
+    from fastapi.testclient import TestClient
+
+    from app import main
+
+    dist = tmp_path / "dist"
+    dist.mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>SPA</title>", encoding="utf-8")
+    monkeypatch.setattr(main, "SPA_DIR", dist)
+
+    with TestClient(main.create_app()) as client:
+        for path in ("/api/nonsense", "/api/devices/aabbccddeeff/bogus", "/api"):
+            response = client.get(path)
+            assert response.status_code == 404, path
+            assert response.headers["content-type"].startswith("application/json"), path
+            assert response.json()["error"]["code"] == "not_found", path
+
+        # Real client-side routes still reach the SPA.
+        assert "SPA" in client.get("/devices").text
+        assert "SPA" in client.get("/").text
+        # And the health endpoint is untouched.
+        assert client.get("/healthz").json()["status"] == "ok"
+
+
 def test_the_embed_route_serves_its_own_entry_not_the_spa(
     tmp_path: Any, monkeypatch: Any
 ) -> None:

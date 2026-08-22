@@ -43,6 +43,7 @@ Every non-2xx response:
 | `invalid_key` | 400 | Key not in the catalog |
 | `invalid_request` | 400 | Malformed request body — see note below |
 | `no_media_session` | 409 | Media control sent to a device with nothing casting |
+| `not_found` | 404 | No such API endpoint |
 | `unauthorized` | 401 | Missing/wrong token |
 | `internal_error` | 500 | Anything else |
 

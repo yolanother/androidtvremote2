@@ -28,7 +28,7 @@ from . import __version__
 from .config import Settings, get_settings
 from .deps import ManagerDep, require_token
 from .devices import DeviceManager
-from .errors import RemoteError
+from .errors import NotFound, RemoteError
 from .models import HealthResponse
 from .routers import catalog, devices, discovery, ws
 from .vendored import AndroidTVRemote
@@ -241,7 +241,16 @@ def _mount_spa(app: FastAPI) -> None:
         :param path: Requested path below the site root.
         :returns: The matching static file, ``embed.html`` for the embed route, or
             ``index.html`` for any other client-side route.
+        :raises NotFound: If the path is under an API prefix and matched no real route.
         """
+        # An unmatched /api path must NOT fall through to the SPA. Without this an API
+        # client asking for a mistyped or malformed endpoint gets 200 text/html, which
+        # reads as success to anything parsing status codes -- Home Assistant, a script,
+        # or an agent over MCP. It also made every rejected /api/icons/<traversal attempt>
+        # answer 200 with the app shell instead of a clean refusal.
+        if path.startswith(("api/", "mcp/")) or path in {"api", "mcp", "healthz"}:
+            raise NotFound(f"No such endpoint: /{path}")
+
         candidate = (SPA_DIR / path).resolve()
         if path and SPA_DIR in candidate.parents and candidate.is_file():
             return FileResponse(candidate)

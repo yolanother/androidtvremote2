@@ -221,6 +221,7 @@ export type ApiErrorCode =
   | 'invalid_key'
   | 'invalid_request'
   | 'no_media_session'
+  | 'not_found'
   | 'unauthorized'
   | 'internal_error'
 

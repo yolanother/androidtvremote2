@@ -106,3 +106,15 @@ class NoMediaSession(RemoteError):
 
     code = "no_media_session"
     status = 409
+
+
+class NotFound(RemoteError):
+    """Raised when a request targets an API path that matches no route.
+
+    Exists so that an unmatched ``/api`` path returns the JSON error envelope rather than
+    falling through to the single-page-app catch-all and answering 200 with the app shell,
+    which any status-code-checking client would read as success.
+    """
+
+    code = "not_found"
+    status = 404
