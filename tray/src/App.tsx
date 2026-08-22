@@ -5,8 +5,14 @@
  * Root component of the Android TV Remote tray panel. Owns the single piece of navigation
  * the app has — remote versus settings — sending first-run users straight to settings until
  * an appliance URL has been saved, responding to the tray menu's "Settings…" item, and
- * hiding the panel on Escape the way a native popover does. Everything else is delegated to
- * `useAppliance` for state and to the two views for presentation.
+ * hiding the panel on Escape the way a native popover does. The root surface itself is a
+ * `deep` Tauri drag region, so the panel can be repositioned by dragging any non-interactive
+ * area of it — buttons, inputs, and the device select stay clickable because Tauri excludes
+ * clickable elements from the drag region automatically. Each view's header opts back out
+ * (`data-tauri-drag-region="false"`) because it packs several small controls into very
+ * little width, where an imprecise click would otherwise start a window drag instead of
+ * hitting the intended button. Everything else is delegated to `useAppliance` for state and
+ * to the two views for presentation.
  */
 import { useEffect, useRef, useState } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
@@ -72,7 +78,7 @@ export default function App() {
   }, [])
 
   return (
-    <main ref={surface} className="panel-surface overflow-hidden">
+    <main ref={surface} className="panel-surface overflow-hidden" data-tauri-drag-region="deep">
       {appliance.loading ? null : view === 'settings' ? (
         <SettingsView appliance={appliance} onClose={() => setView('remote')} />
       ) : (

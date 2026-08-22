@@ -14,8 +14,9 @@ SmartScreen.
 
 A menubar (macOS) and notification-area (Windows) remote for the Android TV Remote
 appliance. Clicking the tray icon opens a borderless, always-on-top panel anchored to the
-icon; it hides again when it loses focus, so it behaves like a native popover rather than a
-window you have to manage.
+icon. It stays open as a persistent overlay widget — rather than a popover that vanishes on
+focus loss — until you dismiss it yourself: the panel's own close (X) button, `Esc`, or
+clicking the tray icon again.
 
 The app is a **client**. It does not talk to TVs directly — it drives the appliance over the
 REST and WebSocket contract in [`docs/design/api-contract.md`](../docs/design/api-contract.md),
@@ -165,7 +166,7 @@ tray/
     components/           the remote surface and the settings screen
   src-tauri/              Rust shell
     src/tray.rs           procedural tray icon and the context menu
-    src/lib.rs            window anchoring, effects, hide-on-blur, commands
+    src/lib.rs            window anchoring, effects, commands
 ```
 
 The division is deliberate: **all HTTP and WebSocket traffic lives in the webview.** The Rust

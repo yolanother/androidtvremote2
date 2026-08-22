@@ -2,32 +2,34 @@
  * Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
  * repository root.
  *
- * The remote surface of the Android TV Remote tray panel: device switcher, power, D-pad with
- * OK/back/home, transport controls, volume with mute, and a text-entry row that types into
- * the TV's focused field. Every control issues the corresponding request from the frozen API
- * contract — key presses through `POST /api/devices/{id}/keys`, power through the idempotent
- * `/power` endpoint, and volume through `/volume` — and the panel is fully keyboard-operable,
- * with the arrow keys driving the D-pad while it has focus.
+ * The remote surface of the Android TV Remote tray panel: device switcher, power, a circular
+ * D-pad with OK, a back/home row, transport controls, a segmented volume pill, and a
+ * text-entry row that types into the TV's focused field — matching the layout and moulded
+ * key styling of the default web remote view. Every control issues the corresponding
+ * request from the frozen API contract — key presses through `POST /api/devices/{id}/keys`,
+ * power through the idempotent `/power` endpoint, and volume through `/volume` — and the
+ * panel is fully keyboard-operable, with the arrow keys driving the D-pad while it has focus.
  */
 import { useEffect, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
   CornerUpLeft,
   FastForward,
   Home,
   Keyboard,
+  Minus,
   Play,
+  Plus,
   Power,
   RefreshCw,
   Rewind,
   Settings as SettingsIcon,
   Volume2,
   VolumeX,
+  X,
 } from 'lucide-react'
 import type { Appliance } from '@/lib/useAppliance'
+import { DPad, type Direction } from './DPad'
 import { RemoteButton, StatusDot, cn, inputClass } from './ui'
 
 /** Keys the panel sends, in the contract's short form. */
@@ -63,6 +65,7 @@ export function RemotePanel({
 
   const disabled = !device || device.state.connection !== 'connected'
   const key = (name: string, repeat = 1) => run((api, id) => api.sendKey(id, name, 'SHORT', repeat))
+  const direction = (d: Direction) => key(KEY[d])
 
   // Arrow keys drive the D-pad whenever the panel, rather than a text field, has focus.
   useEffect(() => {
@@ -94,11 +97,16 @@ export function RemotePanel({
   }, [typing, run])
 
   const muted = device?.state.volume?.muted === true
+  const level = device?.state.volume?.level ?? null
+  const max = device?.state.volume?.max ?? null
   const banner = actionError ?? (link === 'closed' ? (linkError ?? 'Disconnected') : null)
 
   return (
     <div className="flex h-full flex-col gap-3 p-3">
-      <header className="flex items-center gap-2" data-tauri-drag-region>
+      {/* The header packs several small controls into very little width, so it opts out of
+          the panel's "deep" drag region — an imprecise click landing on its background would
+          otherwise start dragging the window instead of hitting the intended button. */}
+      <header className="flex items-center gap-2" data-tauri-drag-region="false">
         <StatusDot status={device?.state.connection ?? 'disconnected'} />
         {devices.length > 0 ? (
           <select
@@ -137,6 +145,15 @@ export function RemotePanel({
         >
           <SettingsIcon className="size-4" />
         </RemoteButton>
+        <RemoteButton
+          variant="ghost"
+          aria-label="Hide"
+          title="Hide"
+          onPress={() => void invoke('hide_panel').catch(() => undefined)}
+          className="size-7"
+        >
+          <X className="size-4" />
+        </RemoteButton>
       </header>
 
       {banner ? (
@@ -155,53 +172,63 @@ export function RemotePanel({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-3 grid-rows-3 gap-2">
-        <RemoteButton aria-label="Back" title="Back" disabled={disabled} onPress={() => key(KEY.back)} className="h-14">
-          <CornerUpLeft className="size-5" />
+      <div className="grid grid-cols-2 gap-2">
+        <RemoteButton aria-label="Back" title="Back" disabled={disabled} onPress={() => key(KEY.back)} className="h-11 rounded-full">
+          <CornerUpLeft className="size-4" />
         </RemoteButton>
-        <RemoteButton aria-label="Up" title="Up" repeat disabled={disabled} onPress={() => key(KEY.up)} className="h-14">
-          <ChevronUp className="size-6" />
-        </RemoteButton>
-        <RemoteButton aria-label="Home" title="Home" disabled={disabled} onPress={() => key(KEY.home)} className="h-14">
-          <Home className="size-5" />
-        </RemoteButton>
-
-        <RemoteButton aria-label="Left" title="Left" repeat disabled={disabled} onPress={() => key(KEY.left)} className="h-14">
-          <ChevronLeft className="size-6" />
-        </RemoteButton>
-        <RemoteButton variant="solid" aria-label="OK" title="OK" disabled={disabled} onPress={() => key(KEY.ok)} className="h-14 text-base">
-          OK
-        </RemoteButton>
-        <RemoteButton aria-label="Right" title="Right" repeat disabled={disabled} onPress={() => key(KEY.right)} className="h-14">
-          <ChevronRight className="size-6" />
-        </RemoteButton>
-
-        <RemoteButton
-          aria-label="Volume down"
-          title="Volume down"
-          repeat
-          disabled={disabled}
-          onPress={() => run((api, id) => api.setVolume(id, { action: 'down' }))}
-          className="h-14"
-        >
-          <span className="text-xs">Vol −</span>
-        </RemoteButton>
-        <RemoteButton aria-label="Down" title="Down" repeat disabled={disabled} onPress={() => key(KEY.down)} className="h-14">
-          <ChevronDown className="size-6" />
-        </RemoteButton>
-        <RemoteButton
-          aria-label="Volume up"
-          title="Volume up"
-          repeat
-          disabled={disabled}
-          onPress={() => run((api, id) => api.setVolume(id, { action: 'up' }))}
-          className="h-14"
-        >
-          <span className="text-xs">Vol +</span>
+        <RemoteButton aria-label="Home" title="Home" disabled={disabled} onPress={() => key(KEY.home)} className="h-11 rounded-full">
+          <Home className="size-4" />
         </RemoteButton>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <DPad disabled={disabled} onDirection={direction} onOk={() => key(KEY.ok)} />
+
+      {/* Volume. The level line is always rendered so a reading arriving from the TV never
+          shifts the pill beneath it. */}
+      <div className="flex flex-col gap-1">
+        <div className="flex h-4 items-center justify-between px-1 text-[11px] text-[var(--muted)]">
+          <span>Volume</span>
+          <span aria-live="polite">
+            {muted ? 'Muted' : level !== null ? `${level}${max ? ` / ${max}` : ''}` : ''}
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl">
+          <RemoteButton
+            variant="key"
+            aria-label={muted ? 'Unmute' : 'Mute'}
+            title={muted ? 'Unmute' : 'Mute'}
+            disabled={disabled}
+            onPress={() => run((api, id) => api.setVolume(id, { action: 'toggle_mute' }))}
+            className={cn('h-11 rounded-none', muted && 'text-pairing')}
+          >
+            {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+          </RemoteButton>
+          <RemoteButton
+            variant="key"
+            aria-label="Volume down"
+            title="Volume down"
+            repeat
+            disabled={disabled}
+            onPress={() => run((api, id) => api.setVolume(id, { action: 'down' }))}
+            className="h-11 rounded-none"
+          >
+            <Minus className="size-4" />
+          </RemoteButton>
+          <RemoteButton
+            variant="key"
+            aria-label="Volume up"
+            title="Volume up"
+            repeat
+            disabled={disabled}
+            onPress={() => run((api, id) => api.setVolume(id, { action: 'up' }))}
+            className="h-11 rounded-none"
+          >
+            <Plus className="size-4" />
+          </RemoteButton>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
         <RemoteButton aria-label="Rewind" title="Rewind" disabled={disabled} onPress={() => key(KEY.rewind)} className="h-11">
           <Rewind className="size-4" />
         </RemoteButton>
@@ -210,15 +237,6 @@ export function RemotePanel({
         </RemoteButton>
         <RemoteButton aria-label="Fast forward" title="Fast forward" disabled={disabled} onPress={() => key(KEY.forward)} className="h-11">
           <FastForward className="size-4" />
-        </RemoteButton>
-        <RemoteButton
-          aria-label={muted ? 'Unmute' : 'Mute'}
-          title={muted ? 'Unmute' : 'Mute'}
-          disabled={disabled}
-          onPress={() => run((api, id) => api.setVolume(id, { action: 'toggle_mute' }))}
-          className={cn('h-11', muted && 'text-pairing')}
-        >
-          {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
         </RemoteButton>
       </div>
 

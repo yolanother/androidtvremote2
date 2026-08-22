@@ -26,9 +26,9 @@ export interface Settings {
   configured: boolean
 }
 
-/** Defaults for a fresh install: localhost, no auth, no hotkey. */
+/** Defaults for a fresh install: the appliance's public hostname, no auth, no hotkey. */
 export const DEFAULT_SETTINGS: Settings = {
-  baseUrl: 'http://localhost:7433',
+  baseUrl: 'https://remote.jaxns.net',
   token: '',
   lastDeviceId: null,
   hotkey: '',

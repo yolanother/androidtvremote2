@@ -4,15 +4,15 @@
 // Rust shell of the Android TV Remote desktop tray app. Owns everything the webview cannot
 // do for itself: it installs the system-tray icon and menu, anchors the borderless remote
 // panel next to the tray icon (below it on macOS, above the notification area on Windows),
-// hides the panel on focus loss, applies the platform's native background material
-// (vibrancy on macOS, Mica/acrylic on Windows), and exposes the `show_panel`,
-// `hide_panel`, `toggle_panel`, `set_hide_on_blur` and `sync_tray` commands. All HTTP and
-// WebSocket traffic to the appliance stays in the frontend; this side never talks to the
+// keeps it always-on-top as a persistent overlay widget dismissed only explicitly — the
+// panel's close button, Escape, or the tray icon — rather than on focus loss, applies the
+// platform's native background material (vibrancy on macOS, Mica/acrylic on Windows), and
+// exposes the `show_panel`, `hide_panel`, `toggle_panel` and `sync_tray` commands. All HTTP
+// and WebSocket traffic to the appliance stays in the frontend; this side never talks to the
 // server, it only relays tray menu clicks to the webview as `tray-action` events.
 
 mod tray;
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use serde::Serialize;
@@ -37,9 +37,6 @@ const SCREEN_MARGIN: i32 = 8;
 struct AppState {
     /// Latest device summary pushed by the webview, used to rebuild the menu.
     tray: Mutex<TrayState>,
-    /// Whether losing focus should hide the panel. The settings screen turns this off so the
-    /// panel does not vanish while the user switches away to copy a token.
-    hide_on_blur: AtomicBool,
 }
 
 /// Payload of the `tray-action` event emitted to the webview when a tray menu item is used.
@@ -187,21 +184,18 @@ fn toggle_panel(app: AppHandle, tray: tauri::State<'_, TrayIcon>) -> Result<(), 
     }
 }
 
-/// Enables or disables hide-on-focus-loss.
-///
-/// The settings screen disables it while it is open; the remote view turns it back on.
-#[tauri::command]
-fn set_hide_on_blur(state: tauri::State<'_, AppState>, enabled: bool) {
-    state.hide_on_blur.store(enabled, Ordering::Relaxed);
-}
-
 /// Resizes the panel to the height the frontend actually needs, so the popover hugs its
-/// content instead of leaving dead space below the remote.
+/// content instead of leaving dead space below the remote — then re-anchors it to the tray
+/// icon. `set_size` keeps the window's top-left corner fixed, so without re-anchoring, a
+/// panel that grows taller while showing (e.g. switching from Settings back to the taller
+/// Remote view) would extend past the screen edge it was originally clamped against instead
+/// of staying fully visible next to the tray icon.
 #[tauri::command]
-fn resize_panel(app: AppHandle, width: f64, height: f64) -> Result<(), String> {
-    panel(&app)
-        .and_then(|w| w.set_size(LogicalSize::new(width, height)))
-        .map_err(|e| e.to_string())
+fn resize_panel(app: AppHandle, tray: tauri::State<'_, TrayIcon>, width: f64, height: f64) -> Result<(), String> {
+    let win = panel(&app).map_err(|e| e.to_string())?;
+    win.set_size(LogicalSize::new(width, height))
+        .map_err(|e| e.to_string())?;
+    anchor_panel(&win, tray.rect().ok().flatten()).map_err(|e| e.to_string())
 }
 
 /// Pushes the current device summary and health from the webview into the tray.
@@ -269,13 +263,11 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(AppState {
             tray: Mutex::new(TrayState::default()),
-            hide_on_blur: AtomicBool::new(true),
         })
         .invoke_handler(tauri::generate_handler![
             show_panel,
             hide_panel,
             toggle_panel,
-            set_hide_on_blur,
             resize_panel,
             sync_tray
         ])
@@ -297,7 +289,18 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| on_menu_event(app, event.id.as_ref()))
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { rect, .. } = event {
+                    // Windows reports a left click as two separate events — button-down, then
+                    // button-up — for the same physical click. Acting on both toggled the
+                    // panel open and immediately shut again: it showed on the down event and
+                    // hid on the up event a few milliseconds later. Only the release should
+                    // count as "clicked," matching every native tray icon.
+                    if let TrayIconEvent::Click {
+                        rect,
+                        button: tauri::tray::MouseButton::Left,
+                        button_state: tauri::tray::MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
                         let app = tray.app_handle();
                         let visible = app
                             .get_webview_window(PANEL)
@@ -325,15 +328,6 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|win, event| {
-            if let WindowEvent::Focused(false) = event {
-                let hide = win
-                    .try_state::<AppState>()
-                    .map(|s| s.hide_on_blur.load(Ordering::Relaxed))
-                    .unwrap_or(true);
-                if hide && win.label() == PANEL {
-                    let _ = win.hide();
-                }
-            }
             // Closing the panel must not quit the app — it lives in the tray.
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if win.label() == PANEL {
