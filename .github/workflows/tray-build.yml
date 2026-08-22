@@ -1,0 +1,99 @@
+# Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
+# repository root.
+#
+# Builds the Tauri desktop tray remote for Windows, macOS (Apple Silicon and Intel), and
+# Linux, and uploads the installers as workflow artifacts. This workflow exists because the
+# tray app CANNOT be cross-compiled from Linux: the Windows target needs the MSVC toolchain
+# and WebView2, and the macOS target needs Xcode, so each bundle has to be produced on its
+# own runner. Triggered manually or on a tray-v* tag; builds are unsigned, so consult
+# tray/README.md for what users see on first launch.
+
+name: Tray build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['tray-v*']
+  pull_request:
+    paths: ['tray/**', '.github/workflows/tray-build.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            args: ''
+          - label: macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            args: '--target aarch64-apple-darwin'
+          - label: macos-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            args: '--target x86_64-apple-darwin'
+          - label: linux-x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            args: ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # WebKitGTK and libappindicator are the Linux webview and tray backends. They are not
+      # preinstalled on the runner and the Rust build fails at link time without them.
+      - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            build-essential curl wget file libssl-dev libayatana-appindicator3-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: tray/src-tauri -> target
+          key: ${{ matrix.label }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tray/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: tray
+        run: npm ci
+
+      - name: Build the tray app
+        working-directory: tray
+        run: npx tauri build ${{ matrix.args }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: androidtv-tray-${{ matrix.label }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            tray/src-tauri/target/*/release/bundle/nsis/*.exe
+            tray/src-tauri/target/*/release/bundle/msi/*.msi
+            tray/src-tauri/target/*/release/bundle/dmg/*.dmg
+            tray/src-tauri/target/*/release/bundle/macos/*.app
+            tray/src-tauri/target/*/release/bundle/deb/*.deb
+            tray/src-tauri/target/*/release/bundle/appimage/*.AppImage
+            tray/src-tauri/target/release/bundle/nsis/*.exe
+            tray/src-tauri/target/release/bundle/msi/*.msi
+            tray/src-tauri/target/release/bundle/deb/*.deb
+            tray/src-tauri/target/release/bundle/appimage/*.AppImage
