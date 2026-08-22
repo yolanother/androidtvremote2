@@ -26,6 +26,51 @@ export interface VolumeInfo {
   muted: boolean
 }
 
+/** Cast player state for an active media session. */
+export type PlayerState = 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'IDLE' | 'UNKNOWN'
+
+/** Transport actions accepted by `POST /api/devices/{id}/media`. */
+export type MediaAction = 'play' | 'pause' | 'play_pause' | 'stop' | 'seek' | 'next' | 'previous'
+
+/**
+ * Media metadata for whatever the television is currently playing.
+ *
+ * Comes from the Google Cast media session, and is `null` for native app playback — Cast
+ * only publishes this namespace for content cast from a phone or browser. Render the
+ * absent case as a first-class state, not an error.
+ */
+export interface NowPlaying {
+  title: string | null
+  subtitle: string | null
+  album: string | null
+  season: number | null
+  episode: number | null
+  content_type: string | null
+  player_state: PlayerState
+  duration: number | null
+  position: number | null
+  /** When `position` was sampled, so the UI can extrapolate instead of polling. */
+  position_at: string | null
+  /** Artwork URLs, largest first. May be empty even during playback. */
+  images: string[]
+  can_pause: boolean
+  can_seek: boolean
+}
+
+/**
+ * Receiver-level Cast state, independent of any media session. Populated far more often
+ * than {@link NowPlaying}: it resolves the foreground app to a readable name and gives
+ * float-precision volume, neither of which the remote protocol provides.
+ */
+export interface CastInfo {
+  app_id: string | null
+  display_name: string | null
+  status_text: string | null
+  volume_level: number | null
+  muted: boolean | null
+  available: boolean
+}
+
 /** Live, non-persisted view of a device: connection health and last-known TV state. */
 export interface DeviceState {
   connection: ConnectionStatus
@@ -34,6 +79,8 @@ export interface DeviceState {
   volume: VolumeInfo | null
   last_seen: string | null
   error: string | null
+  cast: CastInfo | null
+  now_playing: NowPlaying | null
 }
 
 /** A registered TV. `id` is the MAC lowercased with colons stripped and never changes. */
@@ -88,6 +135,8 @@ export interface AppDescriptor {
   deep_link: string | null
   launch: string
   icon: string | null
+  /** Appliance-served icon endpoint, e.g. `/api/icons/com.netflix.ninja`. */
+  icon_url: string | null
 }
 
 /** Long-press support: a held key is bracketed by START_LONG and END_LONG. */
@@ -128,6 +177,12 @@ export interface LaunchAppRequest {
   app: string
 }
 
+/** Body for `POST /api/devices/{id}/media`. `position` is required only for `seek`. */
+export interface MediaControlRequest {
+  action: MediaAction
+  position?: number
+}
+
 /** Body for `POST /api/devices/{id}/power`. `on: null` toggles unconditionally. */
 export interface SetPowerRequest {
   on: boolean | null
@@ -165,6 +220,7 @@ export type ApiErrorCode =
   | 'unreachable'
   | 'invalid_key'
   | 'invalid_request'
+  | 'no_media_session'
   | 'unauthorized'
   | 'internal_error'
 

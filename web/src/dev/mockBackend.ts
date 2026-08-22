@@ -27,6 +27,8 @@ function state(partial: Partial<DeviceState>): DeviceState {
     volume: { level: 14, max: 100, muted: false },
     last_seen: new Date().toISOString(),
     error: null,
+    cast: null,
+    now_playing: null,
     ...partial,
   }
 }
@@ -114,14 +116,14 @@ const keys: KeyDescriptor[] = [
 ]
 
 const apps: AppDescriptor[] = [
-  { id: 'netflix', name: 'Netflix', package: 'com.netflix.ninja', deep_link: null, launch: 'com.netflix.ninja', icon: null },
-  { id: 'youtube', name: 'YouTube', package: 'com.google.android.youtube.tv', deep_link: null, launch: 'com.google.android.youtube.tv', icon: null },
-  { id: 'primevideo', name: 'Prime Video', package: 'com.amazon.amazonvideo.livingroom', deep_link: null, launch: 'com.amazon.amazonvideo.livingroom', icon: null },
-  { id: 'disneyplus', name: 'Disney+', package: 'com.disney.disneyplus', deep_link: null, launch: 'com.disney.disneyplus', icon: null },
-  { id: 'plex', name: 'Plex', package: 'com.plexapp.android', deep_link: null, launch: 'com.plexapp.android', icon: null },
-  { id: 'spotify', name: 'Spotify', package: 'com.spotify.tv.android', deep_link: null, launch: 'com.spotify.tv.android', icon: null },
-  { id: 'jellyfin', name: 'Jellyfin', package: 'org.jellyfin.androidtv', deep_link: null, launch: 'org.jellyfin.androidtv', icon: null },
-  { id: 'twitch', name: 'Twitch', package: 'tv.twitch.android.app', deep_link: null, launch: 'tv.twitch.android.app', icon: null },
+  { id: 'netflix', name: 'Netflix', package: 'com.netflix.ninja', deep_link: null, launch: 'com.netflix.ninja', icon: null, icon_url: '/api/icons/com.netflix.ninja' },
+  { id: 'youtube', name: 'YouTube', package: 'com.google.android.youtube.tv', deep_link: null, launch: 'com.google.android.youtube.tv', icon: null, icon_url: '/api/icons/com.google.android.youtube.tv' },
+  { id: 'primevideo', name: 'Prime Video', package: 'com.amazon.amazonvideo.livingroom', deep_link: null, launch: 'com.amazon.amazonvideo.livingroom', icon: null, icon_url: '/api/icons/com.amazon.amazonvideo.livingroom' },
+  { id: 'disneyplus', name: 'Disney+', package: 'com.disney.disneyplus', deep_link: null, launch: 'com.disney.disneyplus', icon: null, icon_url: '/api/icons/com.disney.disneyplus' },
+  { id: 'plex', name: 'Plex', package: 'com.plexapp.android', deep_link: null, launch: 'com.plexapp.android', icon: null, icon_url: '/api/icons/com.plexapp.android' },
+  { id: 'spotify', name: 'Spotify', package: 'com.spotify.tv.android', deep_link: null, launch: 'com.spotify.tv.android', icon: null, icon_url: '/api/icons/com.spotify.tv.android' },
+  { id: 'jellyfin', name: 'Jellyfin', package: 'org.jellyfin.androidtv', deep_link: null, launch: 'org.jellyfin.androidtv', icon: null, icon_url: '/api/icons/org.jellyfin.androidtv' },
+  { id: 'twitch', name: 'Twitch', package: 'tv.twitch.android.app', deep_link: null, launch: 'tv.twitch.android.app', icon: null, icon_url: '/api/icons/tv.twitch.android.app' },
 ]
 
 /** Sockets currently listening, so REST mutations can echo a delta frame back. */

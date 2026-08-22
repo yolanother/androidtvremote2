@@ -42,6 +42,7 @@ Every non-2xx response:
 | `unreachable` | 503 | TV did not answer |
 | `invalid_key` | 400 | Key not in the catalog |
 | `invalid_request` | 400 | Malformed request body — see note below |
+| `no_media_session` | 409 | Media control sent to a device with nothing casting |
 | `unauthorized` | 401 | Missing/wrong token |
 | `internal_error` | 500 | Anything else |
 
@@ -88,6 +89,42 @@ one error shape.
 `unpaired`, `disabled`. `is_on`, `current_app`, and `volume` are `null` until the TV
 reports them. `error` carries a human-readable reason when `connection` is `unreachable`
 or `unpaired`.
+
+### `NowPlaying` and `CastInfo`
+
+`DeviceState` carries two optional fields sourced from the Google Cast channel on port
+8009, not from the remote protocol:
+
+```json
+"cast": {
+  "app_id": "Netflix", "display_name": "Netflix", "status_text": "Netflix",
+  "volume_level": 0.68, "muted": false, "available": true
+},
+"now_playing": {
+  "title": "Stranger Things", "subtitle": "Chapter One: MADMAX",
+  "album": null, "season": 4, "episode": 1,
+  "content_type": "video/mp4", "player_state": "PLAYING",
+  "duration": 4680.0, "position": 132.5, "position_at": "2026-08-21T22:04:02Z",
+  "images": ["https://.../artwork.jpg"], "can_pause": true, "can_seek": true
+}
+```
+
+**`now_playing` is null far more often than not, and that is normal.** The remote protocol
+carries no media metadata whatsoever, and Cast only publishes its media namespace for
+content *cast to* the device from a phone or browser. A television being driven by its own
+remote reports `AndroidNativeApp` and no media session. Every consumer must treat the null
+case as a first-class state and fall back to app identity — never render it as an error or
+an empty spinner.
+
+`cast` is populated much more reliably: it resolves the foreground app to a human-readable
+name (`"Netflix"` rather than `com.netflix.ninja`) and gives float-precision volume. The
+mDNS TXT record's `st` flag (`1` active, `0` idle) is available with no connection at all.
+
+`position_at` exists so a client can extrapolate the playhead locally between updates
+rather than polling. Compute `position + (now - position_at)` while `player_state` is
+`PLAYING`.
+
+`player_state` is one of `PLAYING`, `PAUSED`, `BUFFERING`, `IDLE`, `UNKNOWN`.
 
 ### `DiscoveredDevice`
 
@@ -181,6 +218,34 @@ within 120 s is torn down and the device returns to `unpaired`.
 - `volume.action` is `up`, `down`, `mute`, `unmute`, or `toggle_mute`. `level` sets an
   absolute level by issuing the appropriate number of up/down steps from the reported
   level.
+
+### Media (Cast session)
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| `POST` | `/api/devices/{id}/media` | `{ "action": "play_pause" }` or `{ "action": "seek", "position": 130.0 }` | `DeviceState` |
+
+`action` is `play`, `pause`, `play_pause`, `stop`, `seek`, `next`, or `previous`.
+`position` is required for `seek` and rejected for everything else.
+
+Returns `409 no_media_session` when nothing is casting — which is the common case. Clients
+should hide or disable transport controls when `state.now_playing` is null rather than
+calling and handling the error.
+
+### Icons
+
+| Method | Path | Returns |
+|---|---|---|
+| `GET` | `/api/icons/{package}` | The app's icon as an image, served from the appliance |
+
+Resolved once per package from the Play Store listing, then cached on the data volume, so
+repeat requests are local and the launcher keeps working offline. Falls back to a bundled
+monochrome brand glyph, then to a brand-coloured wordmark tile, so this endpoint always
+returns an image rather than a 404. `AppDescriptor.icon_url` points here.
+
+This scrapes an unofficial source. It is cached aggressively for that reason, and the
+fallback chain means a Play Store change degrades the launcher's polish rather than
+breaking it.
 
 ### Discovery
 

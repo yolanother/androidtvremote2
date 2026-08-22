@@ -95,3 +95,14 @@ class Unauthorized(RemoteError):
 
     code = "unauthorized"
     status = 401
+
+
+class NoMediaSession(RemoteError):
+    """Raised when a media transport command targets a device with nothing casting.
+
+    This is the common case rather than an exceptional one: Cast publishes a media session
+    only for content cast from a phone or browser, so a TV playing a native app has none.
+    """
+
+    code = "no_media_session"
+    status = 409

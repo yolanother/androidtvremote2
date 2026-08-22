@@ -43,6 +43,59 @@ class DeviceState(BaseModel):
     volume: VolumeInfo | None = Field(default=None, description="Volume readout, null until reported.")
     last_seen: datetime | None = Field(default=None, description="When the TV last answered.")
     error: str | None = Field(default=None, description="Reason for an unreachable/unpaired state.")
+    cast: CastInfo | None = Field(default=None, description="Cast receiver state, when reachable.")
+    now_playing: NowPlaying | None = Field(
+        default=None, description="Cast media session, or null when nothing is casting."
+    )
+
+
+PlayerState = Literal["PLAYING", "PAUSED", "BUFFERING", "IDLE", "UNKNOWN"]
+MediaAction = Literal["play", "pause", "play_pause", "stop", "seek", "next", "previous"]
+
+
+class NowPlaying(BaseModel):
+    """Media metadata for whatever the television is currently playing.
+
+    Populated from the Google Cast media session. It is ``None`` for native app playback:
+    Cast only publishes this namespace for content cast to the device from a phone or
+    browser, so a TV being driven by its own remote reports app identity and nothing more.
+    Consumers must render the absent case as a first-class state, not an error.
+    """
+
+    title: str | None = Field(default=None, description="Primary title of the content.")
+    subtitle: str | None = Field(default=None, description="Series title, artist, or subtitle.")
+    album: str | None = Field(default=None, description="Album name for music content.")
+    season: int | None = Field(default=None, description="Season number for episodic content.")
+    episode: int | None = Field(default=None, description="Episode number for episodic content.")
+    content_type: str | None = Field(default=None, description="MIME type of the content.")
+    player_state: PlayerState = Field(default="UNKNOWN", description="Cast player state.")
+    duration: float | None = Field(default=None, description="Total length in seconds.")
+    position: float | None = Field(default=None, description="Playback offset in seconds.")
+    position_at: datetime | None = Field(
+        default=None,
+        description="When position was sampled, so a client can extrapolate without polling.",
+    )
+    images: list[str] = Field(
+        default_factory=list, description="Artwork URLs, largest first. May be empty."
+    )
+    can_pause: bool = Field(default=False, description="Whether the session accepts pause.")
+    can_seek: bool = Field(default=False, description="Whether the session accepts seek.")
+
+
+class CastInfo(BaseModel):
+    """Receiver-level state from the Google Cast channel, independent of any media session.
+
+    This is populated far more often than :class:`NowPlaying`: it resolves the foreground
+    app to a human-readable name and reports float-precision volume, both of which the
+    remote protocol cannot provide.
+    """
+
+    app_id: str | None = Field(default=None, description="Cast application id.")
+    display_name: str | None = Field(default=None, description="Human-readable app name.")
+    status_text: str | None = Field(default=None, description="Free-text receiver status.")
+    volume_level: float | None = Field(default=None, ge=0, le=1, description="Volume, 0..1.")
+    muted: bool | None = Field(default=None, description="Receiver mute state.")
+    available: bool = Field(default=False, description="Whether the Cast channel is connected.")
 
 
 class Device(BaseModel):
@@ -96,6 +149,10 @@ class AppDescriptor(BaseModel):
     deep_link: str | None = Field(default=None, description="Base deep-link URL, when known.")
     launch: str = Field(description="Package id or URL sent to send_launch_app_command.")
     icon: str | None = Field(default=None, description="Icon slug resolved by the frontend.")
+    icon_url: str | None = Field(
+        default=None,
+        description="Appliance-served icon endpoint, e.g. /api/icons/com.netflix.ninja.",
+    )
 
 
 class RegisterDeviceRequest(BaseModel):
@@ -180,3 +237,25 @@ class HealthResponse(BaseModel):
     devices: int = Field(description="Number of registered devices.")
     connected: int = Field(description="Number of devices with a live connection.")
     version: str = Field(description="Application version.")
+
+
+class MediaControlRequest(BaseModel):
+    """Body for ``POST /api/devices/{id}/media``, controlling a Cast media session."""
+
+    action: MediaAction = Field(description="Transport action to perform.")
+    position: float | None = Field(
+        default=None, ge=0, description="Target offset in seconds; required when action is seek."
+    )
+
+    @model_validator(mode="after")
+    def _seek_needs_position(self) -> MediaControlRequest:
+        """Require a position for seek and reject one for every other action.
+
+        :raises ValueError: If position is missing for seek or supplied for anything else.
+        :returns: The validated model.
+        """
+        if self.action == "seek" and self.position is None:
+            raise ValueError("'position' is required when action is 'seek'")
+        if self.action != "seek" and self.position is not None:
+            raise ValueError("'position' is only valid when action is 'seek'")
+        return self
