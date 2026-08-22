@@ -19,7 +19,7 @@ import pytest
 SERVER_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = SERVER_DIR.parent
 # server/ goes first so `app` resolves to the FastAPI package; src/ is appended rather
-# than prepended because the legacy src/app.py would otherwise shadow that package.
+# than prepended so that nothing under src/ can shadow that package.
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 if str(REPO_ROOT / "src") not in sys.path:

@@ -155,3 +155,6 @@ key.pem
 .claude/hookify.*.local.md
 .orchestrator/hooks.json
 .orchestrator/scripts/
+
+# Playwright MCP scratch output (screenshots, snapshots, console logs).
+.playwright-mcp/

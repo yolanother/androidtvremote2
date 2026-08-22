@@ -5,8 +5,8 @@
 # protocol library. Adds the repository's src/ directory to sys.path when the library is
 # not already installed as a distribution, then re-exports AndroidTVRemote and the three
 # protocol exceptions so that no other module in the server needs to know where the
-# library physically lives. The path is appended rather than prepended on purpose: the
-# legacy src/app.py would otherwise shadow this server's own `app` package.
+# library physically lives. The path is appended rather than prepended so that nothing
+# under src/ can ever shadow this server's own top-level `app` package.
 """Single import seam between the appliance server and the vendored protocol library."""
 
 from __future__ import annotations
