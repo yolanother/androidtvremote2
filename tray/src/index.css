@@ -8,7 +8,9 @@
  * system), keeps the document background fully transparent so the native macOS vibrancy and
  * Windows Mica materials show through, and supplies a blurred fallback surface for
  * platforms with no native material. Also sets the drag, selection, and focus-ring rules
- * that make the panel behave like a native popover rather than a web page.
+ * that make the panel behave like a native popover rather than a web page, and the `.key`
+ * component layer — ported from the web remote's design tokens — that gives the D-pad and
+ * volume pill the same moulded, physically-pressed key faces as the default web remote view.
  */
 @import 'tailwindcss';
 
@@ -42,6 +44,15 @@
   --offline: oklch(0.6 0.016 285.938);
   --pairing: oklch(0.79 0.16 86);
   --danger: oklch(0.577 0.245 27.325);
+
+  /* Remote key faces, matching the web remote. `hi` is the top of the moulded gradient,
+     `active` the pressed face. */
+  --key: oklch(0.955 0.002 286.32);
+  --key-hi: oklch(1 0 0);
+  --key-hover: oklch(0.98 0.001 286.32);
+  --key-active: oklch(0.905 0.004 286.32);
+  --key-accent: oklch(0.24 0.006 285.885);
+  --key-accent-hi: oklch(0.34 0.006 285.885);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -54,6 +65,13 @@
     --accent: oklch(0.93 0.004 286.32);
     --accent-foreground: oklch(0.21 0.006 285.885);
     --offline: oklch(0.55 0.016 285.938);
+
+    --key: oklch(0.245 0.006 286.033);
+    --key-hi: oklch(0.295 0.006 286.033);
+    --key-hover: oklch(0.335 0.006 286.033);
+    --key-active: oklch(0.205 0.006 286.033);
+    --key-accent: oklch(0.8 0.004 286.32);
+    --key-accent-hi: oklch(0.9 0.004 286.32);
   }
 }
 
@@ -101,4 +119,44 @@ input {
 :focus-visible {
   outline: 2px solid var(--online);
   outline-offset: 2px;
+}
+
+@layer components {
+  /* Remote keys read as moulded physical parts: a soft top-light gradient over the key
+     face and a press state that travels DOWN with an inset shadow rather than scaling —
+     see `RemoteButton`'s `key` / `key-accent` variants. */
+  .key {
+    background-image: linear-gradient(to bottom, var(--key-hi), var(--key));
+    box-shadow:
+      0 1px 0 0 var(--key-hi) inset,
+      0 1px 2px 0 oklch(0 0 0 / 0.14);
+    transition:
+      background-color 150ms ease,
+      box-shadow 150ms ease,
+      transform 90ms ease,
+      color 150ms ease;
+  }
+
+  .key:hover:not(:disabled) {
+    background-image: linear-gradient(to bottom, var(--key-hover), var(--key-hi));
+  }
+
+  .key:active:not(:disabled) {
+    transform: translateY(1px);
+    background-image: linear-gradient(to bottom, var(--key-active), var(--key-active));
+    box-shadow: 0 1px 3px 0 oklch(0 0 0 / 0.22) inset;
+  }
+
+  /* The accent key (OK) reads as the one lit part of the cluster. */
+  .key-accent {
+    background-image: linear-gradient(to bottom, var(--key-accent-hi), var(--key-accent));
+  }
+
+  .key-accent:hover:not(:disabled) {
+    background-image: linear-gradient(to bottom, var(--key-accent-hi), var(--key-accent-hi));
+  }
+
+  .key-accent:active:not(:disabled) {
+    background-image: linear-gradient(to bottom, var(--key-accent), var(--key-accent));
+  }
 }

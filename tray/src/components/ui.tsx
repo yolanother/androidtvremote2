@@ -29,8 +29,13 @@ const REPEAT_DELAY_MS = 400
 const REPEAT_INTERVAL_MS = 120
 
 interface RemoteButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  /** Visual weight: `solid` for the primary OK key, `ghost` for everything else. */
-  variant?: 'solid' | 'ghost' | 'danger'
+  /**
+   * Visual weight. `ghost` is the flat icon button used in the header and transport row;
+   * `solid` and `danger` are conventional filled buttons used outside the remote surface
+   * (settings actions). `key` and `key-accent` give a control the moulded, physically-pressed
+   * face the D-pad and volume pill use — `key-accent` is the one lit key in a cluster (OK).
+   */
+  variant?: 'solid' | 'ghost' | 'danger' | 'key' | 'key-accent'
   /** When true, holding the button repeats `onPress` — used for volume and D-pad. */
   repeat?: boolean
   /** Fired on press, and repeatedly while held when `repeat` is set. */
@@ -88,12 +93,17 @@ export function RemoteButton({
         onPress()
       }}
       className={cn(
-        'flex items-center justify-center rounded-xl text-sm font-medium transition',
-        'active:scale-95 disabled:pointer-events-none disabled:opacity-35',
+        'flex items-center justify-center text-sm font-medium transition',
+        // The moulded key faces animate their own press state with a translateY, which a
+        // simultaneous Tailwind active:scale would fight with, so only non-key variants get it.
+        variant === 'key' || variant === 'key-accent' ? 'key' : 'rounded-xl active:scale-95',
+        'disabled:pointer-events-none disabled:opacity-35',
         variant === 'ghost' &&
           'bg-[var(--surface-raised)] text-foreground hover:brightness-110 border border-[var(--border)]',
         variant === 'solid' && 'bg-accent text-accent-foreground hover:brightness-110',
         variant === 'danger' && 'bg-[var(--surface-raised)] text-danger border border-[var(--border)] hover:brightness-110',
+        variant === 'key' && 'border border-[var(--border)] text-foreground',
+        variant === 'key-accent' && 'key-accent border-transparent text-accent-foreground',
         className,
       )}
       {...rest}

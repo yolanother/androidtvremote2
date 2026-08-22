@@ -7,11 +7,10 @@
  * `/healthz` endpoint plus an authenticated `/api/devices` call so the user is told honestly
  * whether the server is reachable AND whether the token is accepted, captures the optional
  * global hotkey by recording the next key combination the user presses, and persists all of
- * it through the Tauri store. Hide-on-blur is suspended while this screen is open so the
- * panel does not disappear when the user switches away to copy a token.
+ * it through the Tauri store.
  */
 import { useEffect, useState } from 'react'
-import { invoke, isTauri } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 import { ArrowLeft, Check, Loader2, X } from 'lucide-react'
 import type { Appliance } from '@/lib/useAppliance'
 import { RemoteApi } from '@/lib/api'
@@ -60,16 +59,6 @@ export function SettingsView({
   const [probe, setProbe] = useState<Probe>({ state: 'idle' })
   const [capturing, setCapturing] = useState(false)
   const firstRun = !appliance.settings.configured
-
-  // Keep the panel on screen while the user is configuring it: they will very likely click
-  // away to another window to fetch their token.
-  useEffect(() => {
-    if (!isTauri()) return
-    void invoke('set_hide_on_blur', { enabled: false }).catch(() => undefined)
-    return () => {
-      void invoke('set_hide_on_blur', { enabled: true }).catch(() => undefined)
-    }
-  }, [])
 
   // Hotkey capture: swallow the next real combination and store it.
   useEffect(() => {
@@ -124,7 +113,8 @@ export function SettingsView({
 
   return (
     <div className="flex h-full flex-col gap-3 p-3">
-      <header className="flex items-center gap-2" data-tauri-drag-region>
+      {/* Opts out of the panel's "deep" drag region — see RemotePanel's header comment. */}
+      <header className="flex items-center gap-2" data-tauri-drag-region="false">
         {!firstRun ? (
           <RemoteButton aria-label="Back to remote" onPress={onClose} className="size-7">
             <ArrowLeft className="size-4" />
@@ -133,6 +123,14 @@ export function SettingsView({
         <h1 className="flex-1 text-sm font-semibold">
           {firstRun ? 'Set up your remote' : 'Settings'}
         </h1>
+        <RemoteButton
+          aria-label="Hide"
+          title="Hide"
+          onPress={() => void invoke('hide_panel').catch(() => undefined)}
+          className="size-7"
+        >
+          <X className="size-4" />
+        </RemoteButton>
       </header>
 
       {firstRun ? (
