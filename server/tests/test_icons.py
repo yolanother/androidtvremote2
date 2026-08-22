@@ -172,13 +172,32 @@ def test_validate_package_accepts_real_package_ids(package: str) -> None:
     assert validate_package(package) == package
 
 
-def test_endpoint_rejects_traversal_style_package_names(app_client: Any) -> None:
-    """A traversal attempt gets the contract's error envelope, not an icon or a stack trace."""
+@pytest.mark.parametrize(
+    "path",
+    [
+        "..%2F..%2Fetc%2Fpasswd",
+        "%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+        "..",
+        "com.foo.bar%2F..%2F..%2Fetc%2Fpasswd",
+        "com.foo%00.bar",
+    ],
+)
+def test_endpoint_never_serves_anything_for_a_traversal_attempt(app_client: Any, path: str) -> None:
+    """A traversal attempt never reaches the filesystem, whichever layer turns it away.
+
+    An encoded slash makes the path stop matching this single-segment route at all, so
+    Starlette answers 404 before the handler runs; a malformed id that does reach the
+    handler is rejected by :func:`validate_package` as 400 invalid_request. Either way the
+    one thing that must never happen is a 200 carrying bytes read from off the cache path.
+    """
     use_network(app_client, FakeNetwork())
-    response = app_client.get("/api/icons/..%2F..%2Fetc%2Fpasswd")
-    assert response.status_code in (400, 404)
+
+    response = app_client.get(f"/api/icons/{path}")
+
+    assert response.status_code in (400, 404), response.status_code
     if response.status_code == 400:
         assert response.json()["error"]["code"] == "invalid_request"
+    assert not response.headers.get("x-icon-source")
 
 
 def test_endpoint_rejects_a_malformed_package_with_the_error_envelope(app_client: Any) -> None:
