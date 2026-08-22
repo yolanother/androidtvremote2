@@ -156,5 +156,10 @@ key.pem
 .orchestrator/hooks.json
 .orchestrator/scripts/
 
+# Python packaging's build/ rule must not swallow this project's own build skill.
+# (Same trap as web/src/lib/ above.) Orch-synced skills stay untracked; ours is committed.
+!.claude/skills/build/
+!.claude/skills/build/**
+
 # Playwright MCP scratch output (screenshots, snapshots, console logs).
 .playwright-mcp/
