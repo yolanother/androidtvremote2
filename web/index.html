@@ -3,8 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Android TV Remote</title>
+
+    <!--
+      PWA. Only this entry carries it: embed.html is framed by other people's pages and
+      must stay a plain, always-fresh document, so it gets neither the manifest nor the
+      service-worker registration below. See docs/pwa.md.
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)" />
+
+    <!-- iOS has no manifest-driven install; these are what Add to Home Screen reads. The
+         apple- form is deprecated in Chrome but is still the only one older iOS honours,
+         so both are present. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Remote" />
+
+    <!--
+      Loaded as its own module rather than from a React component: `beforeinstallprompt`
+      fires during page load, long before the settings screen mounts, and a listener
+      attached later would miss it entirely.
+    -->
+    <script type="module" src="/src/pwa/runtime.ts"></script>
   </head>
   <body>
     <div id="root"></div>
