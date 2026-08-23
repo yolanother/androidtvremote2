@@ -25,5 +25,8 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  /* The self-checks import node:test and node:assert, so they are typechecked by the
+     node project (which has the node types) rather than this browser one. */
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
 }

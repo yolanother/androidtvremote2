@@ -9,13 +9,15 @@
  * renaming, changing the host, enabling or disabling, unpairing, and removing.
  */
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Plus, Settings, Tv } from 'lucide-react'
 
 import { AddDeviceDialog } from '@/components/AddDeviceDialog'
+import { Page, PageHeader } from '@/components/AppShell'
 import { Btn, ErrorStrip, Field, Modal, StatusDot } from '@/components/ui'
 import { PairingDialog } from '@/components/PairingDialog'
 import { api, errorMessage } from '@/lib/api'
+import { foregroundApp } from '@/lib/media'
 import { cn } from '@/lib/utils'
 import type { ConnectionStatus, Device } from '@/lib/api-types'
 import { useRemote } from '@/state/store'
@@ -42,26 +44,20 @@ export function DevicesPage() {
   const [pairing, setPairing] = useState<Device | null>(null)
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-4 p-4 pt-[max(1rem,env(safe-area-inset-top))]">
-      <header className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Televisions</h1>
-        <div className="flex items-center gap-1">
-          <Link
-            to="/settings"
-            aria-label="Settings"
-            className="hover:bg-accent cursor-pointer rounded-xl p-2.5 transition-colors"
-          >
-            <Settings aria-hidden className="size-5" />
-          </Link>
+    <Page wide>
+      <PageHeader
+        title="Televisions"
+        description="Every television registered with this appliance. Open one to drive it, or use the gear to rename, re-pair, or remove it."
+        action={
           <Btn onClick={() => setAddOpen(true)}>
             <Plus aria-hidden className="size-4" />
-            Add
+            Add a television
           </Btn>
-        </div>
-      </header>
+        }
+      />
 
       {state.devices.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+        <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
           <span className="bg-secondary text-muted-foreground grid size-14 place-items-center rounded-2xl">
             <Tv aria-hidden className="size-7" />
           </span>
@@ -78,7 +74,7 @@ export function DevicesPage() {
           </Btn>
         </div>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {state.devices.map((device) => (
             <li key={device.id}>
               <div
@@ -99,12 +95,13 @@ export function DevicesPage() {
                       <StatusDot status={device.state.connection} />
                     </span>
                     <span className="text-muted-foreground mt-0.5 block truncate text-xs">
+                      {/* Resolved through `foregroundApp`, which maps the opaque
+                          `AndroidNativeApp` sentinel back to the app Cast names. */}
                       {device.state.is_on === false
                         ? 'Standby'
-                        : device.state.current_app
-                          ? (state.apps.find((a) => a.package === device.state.current_app)?.name ??
-                            device.state.current_app)
-                          : (device.model ?? device.host)}
+                        : (foregroundApp(device.state, state.apps).name ??
+                          device.model ??
+                          device.host)}
                     </span>
                   </span>
                   <ChevronRight aria-hidden className="text-muted-foreground size-4 shrink-0" />
@@ -142,7 +139,7 @@ export function DevicesPage() {
         />
       )}
       {pairing && <PairingDialog device={pairing} onClose={() => setPairing(null)} />}
-    </div>
+    </Page>
   )
 }
 

@@ -20,7 +20,9 @@ import { getInstallState, getPublicUrl, install, subscribe } from '@/pwa/runtime
 /**
  * The settings block that installs the remote to the home screen.
  *
- * Mount it as a sibling of the other `<section>` elements on the settings screen.
+ * Renders as a card, so it sits alongside the other panels on the settings and landing
+ * screens without any wrapper of its own — it returns null when there is nothing to offer,
+ * and an outer wrapper would leave an empty card behind.
  */
 export function InstallSection() {
   const state = useSyncExternalStore(subscribe, getInstallState)
@@ -32,8 +34,8 @@ export function InstallSection() {
   if (state === 'unconfigured') return null
 
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-sm font-semibold">Install</h2>
+    <section className="bg-card flex flex-col gap-3 rounded-2xl border p-4 shadow-sm sm:p-5">
+      <h2 className="text-base font-semibold">Install</h2>
 
       {state === 'ready' && (
         <>

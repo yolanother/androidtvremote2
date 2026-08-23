@@ -6,12 +6,12 @@
  * name, connection state, and the app it is showing permanently visible — a remote whose presses are
  * silently going nowhere is worse than one that is obviously offline — and turns the name
  * into the device switcher, a sheet listing every registered TV with its live status plus
- * routes to add or manage devices. Also announces connection changes through a polite live
+ * routes back to the console dashboard and to add or manage devices. Also announces connection changes through a polite live
  * region so the state is available without sight.
  */
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, ChevronDown, Plus, Settings, Sliders, Tv } from 'lucide-react'
+import { Check, ChevronDown, LayoutDashboard, Plus, Settings, Sliders, Tv } from 'lucide-react'
 
 import { Btn, LiveRegion, Modal, StatusDot } from '@/components/ui'
 import { cn } from '@/lib/utils'
@@ -66,6 +66,16 @@ export function RemoteHeader({
         </span>
       </button>
 
+      {/* The remote sits outside the app shell, so it carries its own way back to the
+          console — the index route is the dashboard, not this screen. */}
+      <Link
+        to="/"
+        aria-label="Back to the console"
+        title="Back to the console"
+        className="hover:bg-accent cursor-pointer rounded-xl p-2.5 transition-colors"
+      >
+        <LayoutDashboard aria-hidden className="size-5" />
+      </Link>
       <Link
         to="/devices"
         aria-label="Manage televisions"
