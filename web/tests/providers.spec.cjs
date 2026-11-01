@@ -13,6 +13,8 @@
  * artwork-rich guide timeline on phones as well as larger displays.
  * Covers enlarged-text phone viewport budgets and installed-app update notices so
  * clipping and overlapping hit regions cannot masquerade as a non-scrolling layout.
+ * Also verifies roomy desktop content defaults and persistent right-hand input
+ * controls without changing compact phone or folded-screen behavior.
  */
 const { test, expect } = require('@playwright/test');
 
@@ -20,6 +22,23 @@ const TV_A = 'aabbccddeeff';
 const TV_B = '112233445566';
 const PLAYER = 'org.example.player';
 const CAPS = ['catalog', 'browse', 'guide', 'tune', 'channel_step', 'playback', 'profiles'];
+
+test('roomy desktop defaults to Playing with one persistent right-hand remote', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const data = fixtures(); await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await expect(page.getByRole('button', { name: /Living Room TV/ }).first()).toBeVisible();
+  await expect(destination(page, 'Controls')).toHaveCount(0);
+  await expect(destination(page, 'Playing')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('main').getByText('Family observed title', { exact: true })).toBeVisible();
+  const sidebar = page.getByRole('complementary', { name: 'Core controls for Living Room TV', exact: true });
+  await expect(sidebar.locator('[data-remote-surface]')).toHaveCount(1);
+  await expect(page.getByRole('main').locator('[data-remote-surface]')).toHaveCount(0);
+  await expectUnclippedSurface(page, sidebar.locator('[data-remote-surface]'));
+  await expectCoreKeysInViewport(page);
+  expect(data.keys).toEqual([]);
+  expect(data.commands).toEqual([]);
+});
 
 /** Inspect the real painted rectangle against every ancestor that clips overflow. */
 async function expectUnclippedSurface(page, surface, visibleHeight) {
