@@ -7,11 +7,13 @@
  * and tablets/desktops gain a wider browsing pane beside remote controls. Content panes
  * scroll independently, while D-pad and touchpad occupy a height-bounded, non-scrolling
  * stage. The action bar owns profiles; one icon navigation row includes the control-mode
- * picker and expands only the selected destination name. Binds the physical
+ * picker and simultaneously springs the old destination label closed and the selected
+ * label open, respecting reduced motion. Binds the physical
  * keyboard to the same key paths, replaces the controls with an actionable re-pair prompt
  * when the television reports `unpaired`, and surfaces appliance-socket loss as a banner.
  */
 import { useEffect, useState } from 'react'
+import { motion } from 'motion/react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { AppWindow, CalendarDays, Hand, Keyboard, Lock, MonitorPlay, Move, PlugZap, SlidersHorizontal, Tv } from 'lucide-react'
 
@@ -32,6 +34,7 @@ import { useKeyboardControl, useRemoteControl } from '@/hooks/useRemoteControl'
 import { useIntegration } from '@/hooks/useIntegration'
 import { setLastDevice, useSurface, type Surface } from '@/lib/prefs'
 import { cn } from '@/lib/utils'
+import { useOrganicMotion } from '@/lib/motion'
 import { useDevice, useRemote } from '@/state/store'
 
 /**
@@ -46,6 +49,7 @@ export function RemotePage() {
   const [controlMode, setControlMode] = useState<'dpad' | 'touch' | 'text'>('dpad')
   const [pairingOpen, setPairingOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const { reduced, transition } = useOrganicMotion()
 
   const control = useRemoteControl(device)
   const remote = useIntegration(device, surface)
@@ -115,8 +119,12 @@ export function RemotePage() {
           { id: 'media', label: 'Playing', Icon: MonitorPlay },
         ]).map(({ id, label, Icon }) => <button key={id} type="button" role="tab" aria-label={label} title={label} aria-selected={destination === id}
           onClick={() => setSurface(id === 'controls' ? controlMode : id as Surface)}
-          className={cn('flex min-h-11 min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl text-xs font-medium sm:text-sm', destination === id ? 'bg-card px-2 shadow-sm' : 'text-muted-foreground hover:text-foreground w-11 shrink-0')}>
-          <Icon aria-hidden className="size-4 shrink-0" />{destination === id && <span className="truncate">{label}</span>}
+          className={cn('flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-xl px-2 text-xs font-medium sm:text-sm', destination === id ? 'bg-card shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+          <Icon aria-hidden className="size-4 shrink-0" /><motion.span aria-hidden={destination !== id} className="overflow-hidden whitespace-nowrap"
+            initial={false} animate={{ width: destination === id ? 'auto' : 0, opacity: destination === id ? 1 : 0, marginLeft: destination === id ? 6 : 0 }}
+            transition={transition} style={{ maxWidth: 'clamp(2.5rem, 13vw, 5rem)' }}>
+            <span className="block truncate">{label}</span>
+          </motion.span>
         </button>)}
       </div>
       <div title={`Control mode: ${activeMode === 'dpad' ? 'D-pad' : activeMode === 'touch' ? 'Touchpad' : 'Text'}`}
@@ -136,7 +144,8 @@ export function RemotePage() {
           {unpaired ? (
             <RePairPrompt name={device.name} reason={device.state.error} onPair={() => setPairingOpen(true)} />
           ) : (
-            <div className={cn('flex w-full min-w-0 flex-col gap-3 py-1', destination === 'controls' && 'min-h-0 flex-1')}>
+            <motion.div key={destination} initial={reduced ? false : { opacity: 0, y: destination === 'controls' ? 0 : 5 }} animate={{ opacity: 1, y: 0 }} transition={transition}
+              className={cn('flex w-full min-w-0 flex-col gap-3 py-1', destination === 'controls' && 'min-h-0 flex-1')}>
               <ErrorStrip message={control.error} onDismiss={control.clearError} />
               <ErrorStrip message={remote.error} onDismiss={remote.clearError} />
               {remote.message && <p role="status" className="text-muted-foreground rounded-xl border px-3 py-2 text-xs">{remote.message}</p>}
@@ -155,7 +164,7 @@ export function RemotePage() {
               </>}
               {destination === 'guide' && <Guide key={remote.scope} deviceId={device.id} deviceName={device.name} remote={remote} />}
               {destination === 'media' && <div className="flex justify-center"><ProviderPlaying key={device.id} remote={remote} device={device} apps={state.apps} control={control} /></div>}
-            </div>
+            </motion.div>
           )}
         </main>
 

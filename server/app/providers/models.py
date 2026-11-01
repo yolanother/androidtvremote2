@@ -3,7 +3,8 @@
 #
 # Validated version-1 wire models for optional Android TV Remote providers. Defines
 # provider/TV identities, device-scoped browsing and guide data, observed media sessions
-# and the fixed command allowlist. Appliance commands additionally carry an optional
+# and the fixed command allowlist. Optional usage counts, profile colors, channel
+# branding and title descriptions support portable personalized browsing. Appliance commands carry an optional
 # expected profile identity, stripped before forwarding the external v1 payload.
 # Unknown response fields are discarded so private
 # upstream state cannot accidentally become part of the remote's public API.
@@ -113,6 +114,7 @@ class CatalogItem(ProviderModel):
     kind: Literal["app", "service"] = Field(description="Installed app or playable service.")
     package: str | None = Field(default=None, max_length=300, description="Associated Android package.")
     icon_url: str | None = Field(default=None, max_length=4096, description="Optional artwork URL.")
+    usage_count: int | None = Field(default=None, strict=True, ge=0, le=1_000_000_000, description="Recent foreground sessions on this TV, shared across its profiles.")
     available: bool = Field(description="This TV/profile can launch the entry.")
     action: LaunchAction = Field(description="Provider action behind the tile.")
 
@@ -131,6 +133,7 @@ class Title(ProviderModel):
     id: str = Field(min_length=1, max_length=512, description="Opaque provider title ID.")
     title: str = Field(max_length=1000, description="Human-readable title.")
     subtitle: str | None = Field(default=None, max_length=2000, description="Optional descriptive line.")
+    description: str | None = Field(default=None, max_length=4000, description="Optional title synopsis.")
     image_url: str | None = Field(default=None, max_length=4096, description="Optional artwork URL.")
     available: bool = Field(default=True, description="Whether this television can open the title.")
     actions: list[Literal["open", "resume"]] = Field(default_factory=list, description="Allowed title actions.")
@@ -172,6 +175,9 @@ class Channel(ProviderModel):
     name: str = Field(max_length=300, description="Channel label.")
     number: int = Field(ge=0, description="Provider lineup order/number.")
     kind: Literal["recommendation", "live"] = Field(description="Recommendation schedule or live EPG.")
+    package: str | None = Field(default=None, max_length=300, description="Optional Android player package for channel artwork.")
+    icon_url: str | None = Field(default=None, max_length=4096, pattern=r"^https?://", description="Optional HTTP(S) service logo.")
+    accent_color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$", description="Optional service color in six-digit hex.")
     programmes: list[Programme] = Field(max_length=1000, description="Programme intervals.")
 
 
@@ -191,6 +197,7 @@ class Profile(ProviderModel):
     id: str = Field(min_length=1, max_length=200, description="Opaque launcher profile identity.")
     name: str = Field(max_length=300, description="Profile label.")
     image_url: str | None = Field(default=None, max_length=4096, description="Optional profile artwork.")
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$", description="Optional profile color for its initials fallback.")
 
 
 class Profiles(ProviderModel):

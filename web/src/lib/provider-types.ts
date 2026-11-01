@@ -42,6 +42,8 @@ export interface ProviderCatalogItem {
   kind: 'app' | 'service'
   package: string | null
   icon_url: string | null
+  /** Recent foreground sessions reported by this TV; absent for older providers. */
+  usage_count?: number | null
   available: boolean
   action: { type: 'launch'; item_id: string }
 }
@@ -58,6 +60,7 @@ export interface ProviderTitle {
   id: string
   title: string
   subtitle: string | null
+  description?: string | null
   image_url: string | null
   available: boolean
   actions?: Array<'open' | 'resume'>
@@ -89,6 +92,9 @@ export interface GuideChannel {
   name: string
   number: number
   kind: 'recommendation' | 'live'
+  package?: string | null
+  icon_url?: string | null
+  accent_color?: string | null
   programmes: Programme[]
 }
 
@@ -103,7 +109,7 @@ export interface ProviderGuide {
 
 /** Safe launcher profile choices; no streaming account credentials. */
 export interface ProviderProfiles {
-  items: Array<{ id: string; name: string; image_url: string | null }>
+  items: Array<{ id: string; name: string; image_url: string | null; color?: string | null }>
   active_id: string | null
   revision: string
 }

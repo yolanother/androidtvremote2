@@ -7,12 +7,16 @@
  * labelled `Field` input, a `Modal` built on the native `<dialog>` element so focus
  * trapping and Escape-to-close come from the platform, and the `StatusDot` that renders a
  * device's connection state as colour, glyph, and text together rather than colour alone.
+ * Dialogs enter and leave with the workspace's cancellable spring, preserving native
+ * focus trapping through the exit and snapping when reduced motion is requested.
  */
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { motion } from 'motion/react'
 import { AlertTriangle, Check, Loader2, Lock, PowerOff, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import type { ConnectionStatus } from '@/lib/api-types'
+import { useOrganicMotion } from '@/lib/motion'
 
 /** Visual weight of a remote key. */
 type KeyTone = 'default' | 'accent'
@@ -171,17 +175,22 @@ export interface ModalProps {
  */
 export function Modal({ open, onClose, title, description, children, footer }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null)
+  const { reduced, transition } = useOrganicMotion()
 
   useEffect(() => {
     const dialog = ref.current
     if (!dialog) return
     if (open && !dialog.open) dialog.showModal()
-    if (!open && dialog.open) dialog.close()
-  }, [open])
+    if (!open && reduced && dialog.open) dialog.close()
+  }, [open, reduced])
 
   return (
-    <dialog
+    <motion.dialog
       ref={ref}
+      initial={false}
+      animate={{ opacity: open ? 1 : 0, y: open || reduced ? 0 : 16, scale: open || reduced ? 1 : 0.98 }}
+      transition={transition}
+      onAnimationComplete={() => { if (!open && ref.current?.open) ref.current.close() }}
       aria-label={title}
       onCancel={(event) => {
         event.preventDefault()
@@ -193,9 +202,8 @@ export function Modal({ open, onClose, title, description, children, footer }: M
         if (event.target === ref.current) onClose()
       }}
       className={cn(
-        'bg-card text-card-foreground m-0 w-full max-w-md border p-0 shadow-2xl backdrop:bg-black/60',
+        'bg-card text-card-foreground m-0 max-h-[90dvh] w-full max-w-md overflow-y-auto overscroll-contain border p-0 shadow-2xl backdrop:bg-black/60',
         'mt-auto rounded-t-2xl sm:m-auto sm:rounded-2xl',
-        'open:animate-in open:fade-in-0 open:slide-in-from-bottom-4',
       )}
     >
       <div className="flex items-start gap-3 border-b p-4">
@@ -214,11 +222,11 @@ export function Modal({ open, onClose, title, description, children, footer }: M
       </div>
       <div className="p-4">{children}</div>
       {footer && (
-        <div className="flex justify-end gap-2 border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="flex flex-wrap justify-end gap-2 border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {footer}
         </div>
       )}
-    </dialog>
+    </motion.dialog>
   )
 }
 

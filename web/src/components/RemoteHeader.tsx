@@ -8,13 +8,15 @@
  * into the device switcher, a sheet listing every registered TV with its live status plus
  * routes back to the console dashboard and to add or manage devices. Also announces connection changes through a polite live
  * region so the state is available without sight. Optional TV profile selection shares
- * the action bar as a compact, keyboard-accessible picker instead of occupying another row.
+ * the action bar as a compact, keyboard-accessible picker with configured profile photos
+ * and distinguishable colored initials instead of occupying another row.
  */
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, ChevronDown, LayoutDashboard, Plus, Settings, Sliders, Tv, UserRound } from 'lucide-react'
+import { Check, ChevronDown, LayoutDashboard, Plus, Settings, Sliders, Tv } from 'lucide-react'
 
 import { Btn, LiveRegion, Modal, StatusDot } from '@/components/ui'
+import { ProfileAvatar } from '@/components/ProfileAvatar'
 import { cn } from '@/lib/utils'
 import { foregroundApp } from '@/lib/media'
 import type { Device } from '@/lib/api-types'
@@ -82,10 +84,8 @@ export function RemoteHeader({
       </button>
 
       {profiles && onProfileChange && <div title={`TV profile: ${activeProfile?.name ?? 'Choose profile'}`}
-        className="hover:bg-accent focus-within:ring-ring relative grid size-10 shrink-0 place-items-center rounded-xl focus-within:ring-2">
-        {activeProfile?.image_url
-          ? <img src={activeProfile.image_url} alt="" className="pointer-events-none size-6 rounded-full object-cover" />
-          : <UserRound aria-hidden className="pointer-events-none size-5" />}
+        className="hover:bg-accent focus-within:ring-ring relative grid size-11 shrink-0 place-items-center rounded-xl focus-within:ring-2">
+        <ProfileAvatar profile={activeProfile} />
         <select aria-label="TV profile" value={profileId ?? profiles.active_id ?? ''} disabled={profilePending}
           onChange={(event) => onProfileChange(event.target.value)}
           className="absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-wait">

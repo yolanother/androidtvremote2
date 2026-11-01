@@ -19,7 +19,25 @@ right selects D-pad, Touchpad or Text and remembers that choice when returning
 to Controls. D-pad and Touchpad fit the remaining viewport without scrolling,
 including short landscape screens. Apps and Guide scroll inside their content
 pane while the action bar, navigation and core keys stay in place. Text entry
-keeps its own scroll area so fields and recent entries remain reachable.
+keeps its own scroll area so fields and recent entries remain reachable. Destination
+labels collapse and expand together using the same spring motion as list expansion,
+profile artwork and programme details. Reduced-motion preferences remove that travel
+and width animation; commands are always submitted immediately.
+
+Apps show six available entries initially, ranked by the TV's recent foreground
+session counts when supplied. Entries sharing an Android package are combined,
+preferring a launchable service entry. View more opens the full inventory, including
+unavailable entries, and View less restores the shortlist. Missing provider logos use
+the appliance's existing `/api/icons/{package}` endpoint, which supplies cached app
+artwork or a readable fallback. Usage belongs to the TV, shared across its profiles.
+Without usage metadata the shortlist is labelled available apps, rather than claiming
+to know which apps are frequently used. Profile photos fall back to colored initials.
+
+The guide uses a compact time grid on phones and larger screens. The service rail and
+time ruler stay visible within its contained scrolling area; artwork, service colors,
+the now marker and programme progress aid scanning. Selecting a programme opens details
+without controlling playback. Tune remains an explicit action for its channel's current
+available title; future programme details only offer the provider's title actions.
 
 ## Connecting a provider
 
@@ -108,6 +126,20 @@ up/down follows available channels in provider order using an acknowledged
 navigation cursor, so it still advances when the TV cannot confirm a channel.
 Recommendation channels resume/start their current title; they do not seek to
 the elapsed time of a synthetic broadcast.
+
+Version one also accepts these optional presentation fields; older providers can omit
+them without changing their existing responses:
+
+| Resource | Optional fields |
+|---|---|
+| Catalog item | `usage_count`: integer 0–1,000,000,000, recent TV foreground sessions |
+| Profile | `color`: `#RRGGBB` for the initials fallback, alongside `image_url` |
+| Channel | `package`, `icon_url` (HTTP(S)), `accent_color` (`#RRGGBB`) |
+| Title | `description`: synopsis of at most 4,000 characters |
+
+Providers own artwork URLs and colors; the public remote contains no private server
+origins or service-specific branding map. These fields never change programme order,
+intervals, timezone, action IDs or the active profile's command guards.
 
 ## Portable example
 
