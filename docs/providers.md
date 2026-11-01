@@ -42,6 +42,14 @@ available title; future programme details only offer the provider's title action
 Closing details preserves the title, artwork and actions throughout the exit motion;
 late metadata responses are cancelled so they cannot resize a dismissing sheet.
 
+The guide direction combines UI/UX Pro Max's density, touch-target and motion
+guidance with the compact guide and contextual-detail approach described by
+[YouTube TV's design team](https://blog.youtube/news-and-events/youtube-tv-live-guide-and-library/).
+[Mobbin's public dashboard guidance](https://mobbin.com/blog/what-good-dashboard-design-looks-like)
+informed scanning hierarchy; its login-gated screen library was not accessed.
+Shared springs use [Motion for React](https://motion.dev/docs/react-animation)
+with explicit [reduced-motion handling](https://motion.dev/docs/react-accessibility).
+
 ## Connecting a provider
 
 On a multicast-capable LAN, a provider advertises `_atvr-provider._tcp.local.`
