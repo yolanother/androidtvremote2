@@ -12,6 +12,15 @@ The public appliance can integrate a compatible launcher or media server without
 bundling that server's proprietary APIs. With no provider, pairing, keys, text,
 app links, power, volume and Google Cast continue to work normally.
 
+The selected-TV action bar includes the provider's profile picker. Controls,
+Apps, Guide (when available) and Playing share one compact icon row; only the
+selected destination expands its name. The icon-width control-mode picker at the
+right selects D-pad, Touchpad or Text and remembers that choice when returning
+to Controls. D-pad and Touchpad fit the remaining viewport without scrolling,
+including short landscape screens. Apps and Guide scroll inside their content
+pane while the action bar, navigation and core keys stay in place. Text entry
+keeps its own scroll area so fields and recent entries remain reachable.
+
 ## Connecting a provider
 
 On a multicast-capable LAN, a provider advertises `_atvr-provider._tcp.local.`

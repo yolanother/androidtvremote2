@@ -7,16 +7,18 @@
  * silently going nowhere is worse than one that is obviously offline — and turns the name
  * into the device switcher, a sheet listing every registered TV with its live status plus
  * routes back to the console dashboard and to add or manage devices. Also announces connection changes through a polite live
- * region so the state is available without sight.
+ * region so the state is available without sight. Optional TV profile selection shares
+ * the action bar as a compact, keyboard-accessible picker instead of occupying another row.
  */
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, ChevronDown, LayoutDashboard, Plus, Settings, Sliders, Tv } from 'lucide-react'
+import { Check, ChevronDown, LayoutDashboard, Plus, Settings, Sliders, Tv, UserRound } from 'lucide-react'
 
 import { Btn, LiveRegion, Modal, StatusDot } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { foregroundApp } from '@/lib/media'
 import type { Device } from '@/lib/api-types'
+import type { ProviderProfiles } from '@/lib/provider-types'
 import { useRemote } from '@/state/store'
 
 /**
@@ -25,15 +27,27 @@ import { useRemote } from '@/state/store'
  * @param props.device - The television currently being driven.
  * @param props.onSelect - Called with a device id when the user switches televisions.
  * @param props.onAdd - Called when the user asks to add a television.
+ * @param props.profiles - Available selected-TV profiles, when supported by its provider.
+ * @param props.profileId - Current provider profile identity.
+ * @param props.profilePending - Prevents another profile selection while a command is pending.
+ * @param props.onProfileChange - Sends the guarded selected-TV profile change.
  */
 export function RemoteHeader({
   device,
   onSelect,
   onAdd,
+  profiles,
+  profileId,
+  profilePending,
+  onProfileChange,
 }: {
   device: Device
   onSelect: (deviceId: string) => void
   onAdd: () => void
+  profiles?: ProviderProfiles
+  profileId?: string | null
+  profilePending?: boolean
+  onProfileChange?: (profileId: string) => void
 }) {
   const { state } = useRemote()
   const [switcherOpen, setSwitcherOpen] = useState(false)
@@ -41,9 +55,10 @@ export function RemoteHeader({
   // Resolved rather than read straight off `current_app`, which is the opaque
   // `AndroidNativeApp` sentinel whenever the television is driven by its own remote.
   const appName = foregroundApp(device.state, state.apps).name
+  const activeProfile = profiles?.items.find((profile) => profile.id === (profileId ?? profiles.active_id))
 
   return (
-    <header className="flex items-center gap-2 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 lg:px-0 lg:pt-0">
+    <header className="tv-remote-header flex shrink-0 items-center gap-1 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 md:px-0 md:pt-0">
       <button
         type="button"
         onClick={() => setSwitcherOpen(true)}
@@ -66,13 +81,25 @@ export function RemoteHeader({
         </span>
       </button>
 
+      {profiles && onProfileChange && <div title={`TV profile: ${activeProfile?.name ?? 'Choose profile'}`}
+        className="hover:bg-accent focus-within:ring-ring relative grid size-10 shrink-0 place-items-center rounded-xl focus-within:ring-2">
+        {activeProfile?.image_url
+          ? <img src={activeProfile.image_url} alt="" className="pointer-events-none size-6 rounded-full object-cover" />
+          : <UserRound aria-hidden className="pointer-events-none size-5" />}
+        <select aria-label="TV profile" value={profileId ?? profiles.active_id ?? ''} disabled={profilePending}
+          onChange={(event) => onProfileChange(event.target.value)}
+          className="absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-wait">
+          {profiles.items.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+        </select>
+      </div>}
+
       {/* The remote sits outside the app shell, so it carries its own way back to the
           console — the index route is the dashboard, not this screen. */}
       <Link
         to="/"
         aria-label="Back to the console"
         title="Back to the console"
-        className="hover:bg-accent cursor-pointer rounded-xl p-2.5 transition-colors"
+        className="hover:bg-accent grid size-10 shrink-0 place-items-center rounded-xl transition-colors"
       >
         <LayoutDashboard aria-hidden className="size-5" />
       </Link>
@@ -80,7 +107,7 @@ export function RemoteHeader({
         to="/devices"
         aria-label="Manage televisions"
         title="Manage televisions"
-        className="hover:bg-accent cursor-pointer rounded-xl p-2.5 transition-colors"
+        className="hover:bg-accent grid size-10 shrink-0 place-items-center rounded-xl transition-colors"
       >
         <Sliders aria-hidden className="size-5" />
       </Link>
@@ -88,7 +115,7 @@ export function RemoteHeader({
         to="/settings"
         aria-label="Settings"
         title="Settings"
-        className="hover:bg-accent -mr-2 cursor-pointer rounded-xl p-2.5 transition-colors"
+        className="hover:bg-accent -mr-2 grid size-10 shrink-0 place-items-center rounded-xl transition-colors"
       >
         <Settings aria-hidden className="size-5" />
       </Link>

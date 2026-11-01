@@ -12,7 +12,9 @@
  * and touchpad behave correctly on phones). Also defines the `.key` component layer that
  * gives every remote button its moulded, physically-pressed appearance, and the
  * reduced-motion overrides that strip the press travel while keeping its colour change.
- * Short landscape workspaces compact the frame and core keys and omit the duplicate
+ * Remote control stages size their D-pad and touchpad to the remaining viewport instead
+ * of scrolling them; browsing panes retain independent scrolling. Short landscape
+ * workspaces compact the frame and core keys and omit the duplicate
  * browsing-side D-pad so essential controls stay visible without page scrolling.
  */
 
@@ -223,6 +225,42 @@
   }
 }
 
+/* Size containment makes these units describe the remaining control stage, after
+   the action/navigation rows and core keys have taken their fixed space. */
+.tv-control-stage {
+  container-type: size;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.tv-control-stage .tv-fitted-dpad {
+  width: min(100cqw, 100cqh, 19rem);
+  height: min(100cqw, 100cqh, 19rem);
+}
+
+.tv-control-stage .tv-fitted-touchpad {
+  width: min(100cqw, 24rem);
+  height: min(100cqh, 24rem);
+  min-height: 0;
+}
+
+.tv-fitted-touchpad .tv-touchpad-surface {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.tv-control-stage-text {
+  container-type: normal;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 @media (min-width: 640px) and (max-height: 600px) {
   .tv-remote {
     padding: 0.5rem;
@@ -236,13 +274,8 @@
     padding: 0 0 0.375rem;
   }
 
-  .tv-profile-row,
-  .tv-destinations {
+  .tv-navigation {
     margin-bottom: 0.375rem;
-  }
-
-  .tv-profile-row select {
-    min-height: 2rem;
   }
 
   .tv-destinations [role='tab'] {

@@ -5,13 +5,15 @@
  * The selected-TV remote workspace. Provides Controls, Apps, optional Guide and Playing
  * destinations with a persistent header and core keys; phones use a single content pane
  * and tablets/desktops gain a wider browsing pane beside remote controls. Content panes
- * scroll independently so touchpad gestures cannot rubber-band the page. Binds the physical
+ * scroll independently, while D-pad and touchpad occupy a height-bounded, non-scrolling
+ * stage. The action bar owns profiles; one icon navigation row includes the control-mode
+ * picker and expands only the selected destination name. Binds the physical
  * keyboard to the same key paths, replaces the controls with an actionable re-pair prompt
  * when the television reports `unpaired`, and surfaces appliance-socket loss as a banner.
  */
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { AppWindow, CalendarDays, Lock, MonitorPlay, PlugZap, SlidersHorizontal, Tv } from 'lucide-react'
+import { AppWindow, CalendarDays, Hand, Keyboard, Lock, MonitorPlay, Move, PlugZap, SlidersHorizontal, Tv } from 'lucide-react'
 
 import { AddDeviceDialog } from '@/components/AddDeviceDialog'
 import { AppLauncher } from '@/components/AppLauncher'
@@ -51,6 +53,8 @@ export function RemotePage() {
   const capabilities = available ? remote.integration!.capabilities : []
   const guideAvailable = capabilities.includes('guide')
   const controlsSelected = surface === 'dpad' || surface === 'touch' || surface === 'text'
+  const activeMode = controlsSelected ? surface : controlMode
+  const ModeIcon = activeMode === 'touch' ? Hand : activeMode === 'text' ? Keyboard : Move
   const destination = surface === 'apps' ? 'apps' : surface === 'media' ? 'media' : surface === 'guide' && guideAvailable ? 'guide' : 'controls'
   // Modal dialogs own the keyboard while they are open, or Escape would send BACK to the
   // TV instead of closing them.
@@ -59,6 +63,10 @@ export function RemotePage() {
   useEffect(() => {
     if (deviceId) setLastDevice(deviceId)
   }, [deviceId])
+
+  useEffect(() => {
+    if (surface === 'dpad' || surface === 'touch' || surface === 'text') setControlMode(surface)
+  }, [surface])
 
   if (!state.ready) {
     return (
@@ -80,16 +88,11 @@ export function RemotePage() {
         device={device}
         onSelect={(id) => void navigate(`/d/${id}`)}
         onAdd={() => setAddOpen(true)}
+        profiles={capabilities.includes('profiles') ? remote.profiles ?? undefined : undefined}
+        profileId={remote.integration?.profile_id}
+        profilePending={remote.pending}
+        onProfileChange={(id) => void remote.send({ action: 'set_profile', item_id: id })}
       />
-
-      {capabilities.includes('profiles') && remote.profiles && <div className="tv-profile-row mb-3 flex min-w-0 items-center gap-3 px-4 text-xs md:px-0">
-        <label htmlFor="tv-profile" className="text-muted-foreground shrink-0">TV profile</label>
-        <select id="tv-profile" aria-label="TV profile" value={remote.integration?.profile_id ?? remote.profiles.active_id ?? ''}
-          disabled={remote.pending} onChange={(event) => void remote.send({ action: 'set_profile', item_id: event.target.value })}
-          className="bg-card min-h-11 min-w-0 max-w-64 rounded-xl border px-3 text-sm">
-          {remote.profiles.items.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
-        </select>
-      </div>}
 
       {state.socket !== 'open' && (
         <div
@@ -103,40 +106,45 @@ export function RemotePage() {
         </div>
       )}
 
-      <div role="tablist" aria-label="Remote destination" className={cn('tv-destinations bg-secondary mx-4 mb-3 grid shrink-0 gap-1 rounded-2xl p-1 md:mx-0', guideAvailable ? 'grid-cols-4' : 'grid-cols-3')}>
+      <div className="tv-navigation mx-4 mb-2 flex min-w-0 shrink-0 items-center gap-2 md:mx-0">
+      <div role="tablist" aria-label="Remote destination" className="tv-destinations bg-secondary flex min-w-0 gap-1 rounded-2xl p-1">
         {([
           { id: 'controls', label: 'Controls', Icon: SlidersHorizontal },
           { id: 'apps', label: 'Apps', Icon: AppWindow },
           ...(guideAvailable ? [{ id: 'guide', label: 'Guide', Icon: CalendarDays }] : []),
           { id: 'media', label: 'Playing', Icon: MonitorPlay },
-        ]).map(({ id, label, Icon }) => <button key={id} type="button" role="tab" aria-selected={destination === id}
+        ]).map(({ id, label, Icon }) => <button key={id} type="button" role="tab" aria-label={label} title={label} aria-selected={destination === id}
           onClick={() => setSurface(id === 'controls' ? controlMode : id as Surface)}
-          className={cn('flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-medium sm:text-sm', destination === id ? 'bg-card shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
-          <Icon aria-hidden className="size-4 shrink-0" />{label}
+          className={cn('flex min-h-11 min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl text-xs font-medium sm:text-sm', destination === id ? 'bg-card px-2 shadow-sm' : 'text-muted-foreground hover:text-foreground w-11 shrink-0')}>
+          <Icon aria-hidden className="size-4 shrink-0" />{destination === id && <span className="truncate">{label}</span>}
         </button>)}
+      </div>
+      <div title={`Control mode: ${activeMode === 'dpad' ? 'D-pad' : activeMode === 'touch' ? 'Touchpad' : 'Text'}`}
+        className="tv-mode-picker bg-secondary focus-within:ring-ring relative ml-auto grid size-11 shrink-0 place-items-center rounded-xl focus-within:ring-2">
+        <ModeIcon aria-hidden className="pointer-events-none size-5" />
+        <select aria-label="Control mode" value={activeMode}
+          onChange={(event) => { const mode = event.target.value as 'dpad' | 'touch' | 'text'; setControlMode(mode); setSurface(mode) }}
+          className="absolute inset-0 size-full cursor-pointer opacity-0">
+          <option value="dpad">D-pad</option><option value="touch">Touchpad</option><option value="text">Text</option>
+        </select>
+      </div>
       </div>
 
       <div className="tv-remote-workspace flex min-h-0 min-w-0 flex-1 flex-col gap-3 md:grid md:grid-cols-[minmax(0,1fr)_17rem] md:gap-5 xl:grid-cols-[minmax(0,1fr)_19rem]">
-        <main aria-label={`${device.name} remote content`} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3 md:px-0">
+        <main aria-label={`${device.name} remote content`} className={cn('min-h-0 min-w-0 flex-1 px-4 pb-2 md:px-0',
+          destination === 'controls' && !unpaired ? 'tv-controls-main flex flex-col overflow-hidden' : 'overflow-y-auto overscroll-contain')}>
           {unpaired ? (
             <RePairPrompt name={device.name} reason={device.state.error} onPair={() => setPairingOpen(true)} />
           ) : (
-            <div className="flex w-full min-w-0 flex-col gap-3 py-2">
+            <div className={cn('flex w-full min-w-0 flex-col gap-3 py-1', destination === 'controls' && 'min-h-0 flex-1')}>
               <ErrorStrip message={control.error} onDismiss={control.clearError} />
               <ErrorStrip message={remote.error} onDismiss={remote.clearError} />
               {remote.message && <p role="status" className="text-muted-foreground rounded-xl border px-3 py-2 text-xs">{remote.message}</p>}
               {surface === 'guide' && !guideAvailable && <p role="status" className="text-muted-foreground text-sm">The guide is unavailable. You can still use the standard remote controls.</p>}
-              {destination === 'controls' && <section aria-label="Remote controls" className="flex min-w-0 flex-col items-center gap-4">
-                <div role="group" aria-label="Control mode" className="bg-secondary grid w-full max-w-sm grid-cols-3 gap-1 rounded-xl p-1">
-                  {(['dpad', 'touch', 'text'] as const).map((mode) => <button key={mode} type="button" aria-pressed={(controlsSelected ? surface : controlMode) === mode}
-                    onClick={() => { setControlMode(mode); setSurface(mode) }} className={cn('min-h-10 cursor-pointer rounded-lg text-xs font-medium', (controlsSelected ? surface : controlMode) === mode && 'bg-card shadow-sm')}>
-                    {mode === 'dpad' ? 'D-pad' : mode === 'touch' ? 'Touchpad' : 'Text'}
-                  </button>)}
-                </div>
-                {(controlsSelected ? surface : controlMode) === 'dpad' && <DPad control={control} />}
-                {(controlsSelected ? surface : controlMode) === 'touch' && <Touchpad control={control} />}
-                {(controlsSelected ? surface : controlMode) === 'text' && <TextEntry control={control} />}
-                <p className="text-muted-foreground max-w-sm text-center text-xs">Controlling {device.name}</p>
+              {destination === 'controls' && <section aria-label="Remote controls" className={cn('tv-control-stage min-h-0 min-w-0 flex-1', activeMode === 'text' && 'tv-control-stage-text')}>
+                {activeMode === 'dpad' && <DPad control={control} className="tv-fitted-dpad" />}
+                {activeMode === 'touch' && <Touchpad control={control} className="tv-fitted-touchpad" />}
+                {activeMode === 'text' && <TextEntry control={control} />}
               </section>}
               {destination === 'apps' && <>
                 {capabilities.includes('catalog') ? <ProviderApps remote={remote} deviceName={device.name} /> : <section className="flex flex-col items-center gap-3">
