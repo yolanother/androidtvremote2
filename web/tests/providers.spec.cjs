@@ -7,6 +7,8 @@
  * synthetic appliance WebSocket events, asserting capability-driven controls,
  * authoritative guide actions, source-aware playback and race-safe TV/profile
  * changes without any physical TV or production-service traffic.
+ * Also checks compact navigation and actual control-pane geometry, wheel/touch
+ * scrolling, held keys, and independently scrollable long browsing destinations.
  */
 const { test, expect } = require('@playwright/test');
 
@@ -382,3 +384,220 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 768, height: 1024 
     }
   });
 }
+
+/** Let browser layout and pointer-driven React updates settle without timing guesses. */
+async function frames(page) {
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+}
+
+/** Exercise old controls on the RED baseline as well as the replacement dropdown. */
+async function chooseMode(page, mode) {
+  const picker = page.getByRole('combobox', { name: 'Control mode', exact: true });
+  if (await picker.count()) await picker.selectOption(mode);
+  else await page.getByRole('button', { name: { dpad: 'D-pad', touch: 'Touchpad', text: 'Text' }[mode], exact: true }).click();
+  await frames(page);
+}
+
+/** Capture every control ancestor, since a locked document can still hide an inner scroll defect. */
+async function controlGeometry(surface) {
+  return surface.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const ancestors = [];
+    for (let node = element; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      ancestors.push({ tag: node.tagName, role: node.getAttribute('role'),
+        top: node.scrollTop, left: node.scrollLeft, range: node.scrollHeight - node.clientHeight,
+        scrollable: /auto|scroll/.test(style.overflowY) });
+    }
+    return { x: box.x, y: box.y, width: box.width, height: box.height,
+      windowX: window.scrollX, windowY: window.scrollY, ancestors };
+  });
+}
+
+/** Dispatch actual Chromium touch input so native scrolling and pointer handlers both participate. */
+async function touchGesture(page, surface, mode, tap = false) {
+  const box = await surface.boundingBox();
+  const client = await page.context().newCDPSession(page);
+  await client.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+  const x = box.x + box.width / 2;
+  const y = mode === 'dpad' ? box.y + Math.min(34, box.height * .18) : box.y + box.height * .72;
+  const point = (at) => ({ x, y: at, id: 1, radiusX: 3, radiusY: 3, force: 1 });
+  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(y)] });
+  await frames(page);
+  if (!tap) {
+    const distance = Math.min(125, box.height * .5);
+    for (let step = 1; step <= 5; step++) {
+      const next = mode === 'dpad' ? y + distance * step / 5 : y - distance * step / 5;
+      await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(next)] });
+      await frames(page);
+    }
+  }
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await frames(page);
+  await client.detach();
+}
+
+/** All primary keys must remain reachable; clipping the control stage is not a layout fix. */
+async function expectCoreKeysInViewport(page) {
+  for (const name of ['Back', 'Home', 'Menu', 'Power off', 'Previous', 'Play or pause', 'Next', 'Mute', 'Volume down', 'Volume up']) {
+    await expect.soft(page.getByRole('button', { name, exact: true })).toBeInViewport({ ratio: 1 });
+  }
+}
+
+for (const viewport of [{ width: 360, height: 640 }, { width: 390, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }]) {
+  test(`compact action bar and selected-only destination labels at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    const data = fixtures();
+    await install(page, data);
+    await page.goto(`/d/${TV_A}`);
+    const profile = page.getByRole('combobox', { name: 'TV profile', exact: true });
+    await expect(profile).toBeVisible();
+    expect.soft(await profile.evaluate((element) => !!element.closest('header'))).toBe(true);
+    const nav = page.getByRole('tablist', { name: 'Remote destination' });
+    await expect(nav).toBeVisible();
+    const mode = page.getByRole('combobox', { name: 'Control mode', exact: true });
+    await expect.soft(mode).toHaveCount(1);
+    for (const selected of ['Controls', 'Apps', 'Guide', 'Playing']) {
+      await destination(page, selected).click();
+      await expect(destination(page, selected)).toHaveAttribute('aria-selected', 'true');
+      const text = await nav.innerText();
+      for (const label of ['Controls', 'Apps', 'Guide', 'Playing']) {
+        expect.soft(text.includes(label), `${label} visible while ${selected} selected`).toBe(label === selected);
+        await expect(destination(page, label)).toBeVisible();
+      }
+    }
+    if (await mode.count()) {
+      const picker = await mode.boundingBox();
+      const tabs = await nav.boundingBox();
+      expect.soft(picker.width).toBeLessThanOrEqual(48);
+      expect.soft(Math.abs(picker.y + picker.height / 2 - tabs.y - tabs.height / 2)).toBeLessThanOrEqual(2);
+      expect.soft(picker.x).toBeGreaterThanOrEqual(tabs.x + tabs.width - 1);
+      await mode.focus();
+      expect(await mode.evaluate((element) => element === document.activeElement)).toBe(true);
+    }
+    expect.soft(await page.getByRole('group', { name: 'Control mode', exact: true }).count()).toBe(0);
+    expect.soft(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await profile.selectOption('adult');
+    await expect.poll(() => data.commands.find((command) => command.action === 'set_profile')).toBeTruthy();
+    expect(data.commands.find((command) => command.action === 'set_profile')).toMatchObject({ device_id: TV_A, item_id: 'adult', profile_id: 'family', profile_revision: 'profile-1' });
+  });
+}
+
+for (const viewport of [{ width: 360, height: 640 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
+  for (const mode of ['dpad', 'touch']) {
+    test(`${mode} control surface never scrolls at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      const data = fixtures();
+      await install(page, data);
+      await page.goto(`/d/${TV_A}`);
+      await chooseMode(page, mode);
+      const surface = page.locator('[data-remote-surface]').first();
+      await expect(surface).toBeVisible();
+      const before = await controlGeometry(surface);
+      expect.soft(before.width).toBeGreaterThanOrEqual(120);
+      expect.soft(before.height).toBeGreaterThanOrEqual(120);
+      await expect.soft(surface).toBeInViewport({ ratio: 1 });
+      await expectCoreKeysInViewport(page);
+      const scrollRanges = before.ancestors.filter((ancestor) => ancestor.scrollable && ancestor.range > 1);
+      expect.soft(scrollRanges, 'No scrollable ancestor may own the D-pad/touchpad').toEqual([]);
+      const box = await surface.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, Math.min(box.y + box.height / 2, viewport.height - 20));
+      await page.mouse.wheel(0, 550);
+      await frames(page);
+      const wheeled = await controlGeometry(surface);
+      console.log(JSON.stringify({ viewport, mode, beforeY: before.y, afterWheelY: wheeled.y,
+        scrollers: before.ancestors.filter((a) => a.scrollable).map((a) => ({ tag: a.tag, range: a.range })),
+        beforeOffsets: before.ancestors.map((a) => a.top), afterOffsets: wheeled.ancestors.map((a) => a.top) }));
+      expect.soft(wheeled.ancestors.map((a) => [a.top, a.left])).toEqual(before.ancestors.map((a) => [a.top, a.left]));
+      expect.soft(wheeled.y).toBeCloseTo(before.y, 1);
+      expect.soft([wheeled.windowX, wheeled.windowY]).toEqual([before.windowX, before.windowY]);
+      // Reset only to let the existing defective baseline also exercise genuine touch input.
+      await surface.evaluate((element) => { for (let node = element; node; node = node.parentElement) node.scrollTop = 0; });
+      await frames(page);
+      const touchedBefore = await controlGeometry(surface);
+      const firstKey = data.keys.length;
+      await touchGesture(page, surface, mode);
+      const touched = await controlGeometry(surface);
+      expect.soft(touched.ancestors.map((a) => [a.top, a.left])).toEqual(touchedBefore.ancestors.map((a) => [a.top, a.left]));
+      expect.soft(touched.y).toBeCloseTo(touchedBefore.y, 1);
+      await expect.poll(() => data.keys.slice(firstKey).some((key) => key.key === 'DPAD_UP')).toBe(true);
+      expect(data.keys.slice(firstKey).every((key) => key.device_id === TV_A)).toBe(true);
+    });
+  }
+}
+
+test('mode dropdown preserves selection and pointer tap/hold controls still reach the TV', async ({ page }) => {
+  const data = fixtures();
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  const picker = page.getByRole('combobox', { name: 'Control mode', exact: true });
+  await expect(picker).toBeVisible();
+  await picker.selectOption('touch');
+  await destination(page, 'Apps').click();
+  await destination(page, 'Controls').click();
+  await expect(picker).toHaveValue('touch');
+  const surface = page.locator('[data-remote-surface]').first();
+  await touchGesture(page, surface, 'touch', true);
+  await expect.poll(() => data.keys.filter((key) => key.key === 'DPAD_CENTER').length).toBe(1);
+  await picker.selectOption('dpad');
+  const up = page.getByRole('button', { name: 'Up', exact: true });
+  const box = await up.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + 25);
+  await page.mouse.down();
+  await expect.poll(() => data.keys.filter((key) => key.key === 'DPAD_UP').length).toBeGreaterThanOrEqual(2);
+  await page.mouse.up();
+  const stopped = data.keys.length;
+  await page.waitForTimeout(300);
+  expect(data.keys.length).toBe(stopped);
+  await picker.selectOption('text');
+  await expect(page.getByRole('textbox').first()).toBeVisible();
+  await expect(picker).toHaveValue('text');
+});
+
+for (const selected of ['Apps', 'Guide']) {
+  test(`${selected} content scrolls independently of the compact chrome and core keys`, async ({ page }) => {
+    const data = fixtures();
+    const resources = data.resources[TV_A];
+    resources.catalog.items = Array.from({ length: 70 }, (_, i) => ({ ...resources.catalog.items[0], id: `app-${i}`, name: `Fixture app ${i}` }));
+    resources.guide.channels = Array.from({ length: 70 }, (_, i) => ({ ...resources.guide.channels[0], id: `channel-${i}`, name: `Fixture channel ${i}`, number: i + 1 }));
+    await install(page, data);
+    await page.goto(`/d/${TV_A}`);
+    await destination(page, selected).click();
+    const heading = page.getByRole('heading', { name: selected === 'Apps' ? 'Apps & services' : 'TV guide', exact: true });
+    await expect(heading).toBeVisible();
+    await expect(selected === 'Apps' ? page.getByRole('button', { name: 'Open Fixture app 0', exact: true })
+      : page.getByText('Family programme', { exact: true }).first()).toBeVisible();
+    await frames(page);
+    const fixed = [page.getByRole('banner'), page.getByRole('tablist', { name: 'Remote destination' }), page.getByRole('button', { name: 'Home', exact: true })];
+    const before = await Promise.all(fixed.map((item) => item.boundingBox()));
+    const scroller = await heading.evaluateHandle((element) => {
+      for (let node = element.parentElement; node; node = node.parentElement) {
+        if (/auto|scroll/.test(getComputedStyle(node).overflowY) && node.scrollHeight > node.clientHeight + 1) return node;
+      }
+      return null;
+    });
+    expect(await scroller.evaluate((element) => !!element)).toBe(true);
+    const box = await scroller.evaluate((element) => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 550);
+    await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
+    const after = await Promise.all(fixed.map((item) => item.boundingBox()));
+    for (let i = 0; i < before.length; i++) expect(after[i]).toEqual(before[i]);
+    expect(await page.evaluate(() => [scrollX, scrollY])).toEqual([0, 0]);
+    await expectCoreKeysInViewport(page);
+  });
+}
+
+test('generic and unpaired TVs keep compact navigation and an accessible repair action', async ({ page }) => {
+  const data = fixtures();
+  data.resources[TV_A].integration = integration(TV_A, false);
+  data.devices[0].paired = false;
+  data.devices[0].state.connection = 'unpaired';
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await expect(page.getByRole('combobox', { name: 'TV profile', exact: true })).toHaveCount(0);
+  await expect(destination(page, 'Guide')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Pair this television', exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole('combobox', { name: 'Control mode', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
