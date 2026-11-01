@@ -74,15 +74,15 @@ export function RemotePage() {
   const unpaired = device.state.connection === 'unpaired' || !device.paired
 
   return (
-    <div className="flex h-dvh min-w-0 flex-col overflow-hidden md:p-4 xl:p-6">
-      <div className="bg-background mx-auto flex min-h-0 w-full max-w-[1700px] flex-1 flex-col md:rounded-3xl md:border md:p-4">
+    <div className="tv-remote flex h-dvh min-w-0 flex-col overflow-hidden md:p-4 xl:p-6">
+      <div className="tv-remote-frame bg-background mx-auto flex min-h-0 w-full max-w-[1700px] flex-1 flex-col md:rounded-3xl md:border md:p-4">
       <RemoteHeader
         device={device}
         onSelect={(id) => void navigate(`/d/${id}`)}
         onAdd={() => setAddOpen(true)}
       />
 
-      {capabilities.includes('profiles') && remote.profiles && <div className="mb-3 flex min-w-0 items-center gap-3 px-4 text-xs md:px-0">
+      {capabilities.includes('profiles') && remote.profiles && <div className="tv-profile-row mb-3 flex min-w-0 items-center gap-3 px-4 text-xs md:px-0">
         <label htmlFor="tv-profile" className="text-muted-foreground shrink-0">TV profile</label>
         <select id="tv-profile" aria-label="TV profile" value={remote.integration?.profile_id ?? remote.profiles.active_id ?? ''}
           disabled={remote.pending} onChange={(event) => void remote.send({ action: 'set_profile', item_id: event.target.value })}
@@ -103,7 +103,7 @@ export function RemotePage() {
         </div>
       )}
 
-      <div role="tablist" aria-label="Remote destination" className={cn('bg-secondary mx-4 mb-3 grid shrink-0 gap-1 rounded-2xl p-1 md:mx-0', guideAvailable ? 'grid-cols-4' : 'grid-cols-3')}>
+      <div role="tablist" aria-label="Remote destination" className={cn('tv-destinations bg-secondary mx-4 mb-3 grid shrink-0 gap-1 rounded-2xl p-1 md:mx-0', guideAvailable ? 'grid-cols-4' : 'grid-cols-3')}>
         {([
           { id: 'controls', label: 'Controls', Icon: SlidersHorizontal },
           { id: 'apps', label: 'Apps', Icon: AppWindow },
@@ -116,7 +116,7 @@ export function RemotePage() {
         </button>)}
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 md:grid md:grid-cols-[minmax(0,1fr)_17rem] md:gap-5 xl:grid-cols-[minmax(0,1fr)_19rem]">
+      <div className="tv-remote-workspace flex min-h-0 min-w-0 flex-1 flex-col gap-3 md:grid md:grid-cols-[minmax(0,1fr)_17rem] md:gap-5 xl:grid-cols-[minmax(0,1fr)_19rem]">
         <main aria-label={`${device.name} remote content`} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3 md:px-0">
           {unpaired ? (
             <RePairPrompt name={device.name} reason={device.state.error} onPair={() => setPairingOpen(true)} />
@@ -153,7 +153,7 @@ export function RemotePage() {
 
         <aside aria-label={`Core controls for ${device.name}`} className="w-full min-w-0 shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:min-h-0 md:overflow-y-auto md:border-l md:pl-5 md:pr-0 md:pb-0">
           <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-5">
-            {destination !== 'controls' && !unpaired && <div className="hidden w-full flex-col items-center gap-3 md:flex"><p className="text-muted-foreground text-xs">Remote · {device.name}</p><DPad control={control} className="w-full max-w-52" /></div>}
+            {destination !== 'controls' && !unpaired && <div className="tv-side-dpad hidden w-full flex-col items-center gap-3 md:flex"><p className="text-muted-foreground text-xs">Remote · {device.name}</p><DPad control={control} className="w-full max-w-52" /></div>}
             <Deck control={control} state={device.state} />
           </div>
         </aside>

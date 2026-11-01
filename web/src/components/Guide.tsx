@@ -127,7 +127,7 @@ export function Guide({ deviceId, deviceName, remote }: { deviceId: string; devi
             </div>
           </div>}
         </>}
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected?.programme.title ?? 'Programme details'}
+      <Modal open={!!selected} onClose={() => setSelected(null)} title={detail?.title ?? selected?.programme.title ?? 'Programme details'}
         description={selected && guide ? `${selected.channel.name} · ${clock(selected.programme.start, guide.timezone)} – ${clock(selected.programme.end, guide.timezone)}` : undefined}
         footer={<>
           {selected && current(selected.programme, serverNow) && capabilities.includes('tune') && <Btn disabled={!selected.programme.available || remote.pending} onClick={() => tune(selected.channel)}>Tune channel</Btn>}

@@ -46,7 +46,7 @@ export function Deck({
   const level = state.volume?.level ?? null
 
   return (
-    <div className="flex w-full max-w-sm flex-col gap-3">
+    <div className="tv-core-deck flex w-full max-w-sm flex-col gap-3">
       {/* Navigation row. */}
       <div className="grid grid-cols-4 gap-2">
         <Key label="Back" round disabled={disabled} {...hold(KEYS.back)} className="h-14">
