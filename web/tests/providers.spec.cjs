@@ -137,6 +137,8 @@ test('desktop sidebar gestures text and keys remain scoped to the selected TV', 
   await expect.poll(() => data.keys.some((key) => key.device_id === TV_A && key.key === 'DPAD_UP')).toBe(true);
   await selectTv(page, 'Living Room TV', 'Bedroom TV');
   await expect(page).toHaveURL(new RegExp(`/d/${TV_B}$`));
+  // The TV route changes before the chooser's elastic exit releases its top layer.
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
   await chooseMode(page, 'touch');
   const firstBedroomKey = data.keys.length;
   await touchGesture(page, page.getByRole('complementary').locator('[data-remote-surface]'), 'touch');
