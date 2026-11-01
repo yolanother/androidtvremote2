@@ -401,6 +401,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 768, height: 1024 
     const data = fixtures();
     await install(page, data);
     await page.goto(`/d/${TV_A}`);
+    // This case measures responsive geometry after provider discovery, not startup latency.
+    await expect(destination(page, 'Guide')).toBeVisible({ timeout: 10000 });
     await destination(page, 'Guide').click();
     await expect(page.getByText('Family programme', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
@@ -435,8 +437,11 @@ async function frames(page) {
 /** Exercise old controls on the RED baseline as well as the replacement dropdown. */
 async function chooseMode(page, mode) {
   const picker = page.getByRole('combobox', { name: 'Control mode', exact: true });
-  if (await picker.count()) await picker.selectOption(mode);
-  else await page.getByRole('button', { name: { dpad: 'D-pad', touch: 'Touchpad', text: 'Text' }[mode], exact: true }).click();
+  const legacy = page.getByRole('button', { name: { dpad: 'D-pad', touch: 'Touchpad', text: 'Text' }[mode], exact: true });
+  // An unhydrated React tree has neither control yet; it is not evidence of the old UI.
+  await expect(picker.or(legacy).first()).toBeVisible({ timeout: 10000 });
+  if (await picker.isVisible()) await picker.selectOption(mode);
+  else await legacy.click();
   await frames(page);
 }
 
