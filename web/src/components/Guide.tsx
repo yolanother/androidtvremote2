@@ -110,7 +110,7 @@ export function Guide({ deviceId, deviceName, remote }: { deviceId: string; devi
                     <button type="button" aria-label={`Tune ${channel.name}`} disabled={!capabilities.includes('tune') || !active?.available || remote.pending} onClick={() => tune(channel)}
                       className="hover:bg-accent flex h-full w-full cursor-pointer flex-col items-start justify-center gap-1 border-l-[3px] px-2 text-left disabled:cursor-default" style={{ borderLeftColor: accent }}>
                       <span className="flex w-full items-center gap-1.5"><AppIcon iconUrl={channel.icon_url || (channel.package ? `/api/icons/${encodeURIComponent(channel.package)}` : null)} name={channel.name} alt="" className="!w-6 !rounded-md" size={48} /><span className="text-muted-foreground text-[0.625rem] tabular-nums">{String(channel.number).padStart(2, '0')}</span><Play aria-hidden className="ml-auto size-3" /></span>
-                      <span className="w-full truncate text-[0.6875rem] font-semibold" title={channel.name}>{channel.name}</span>
+                      <span className="line-clamp-2 w-full text-[0.6875rem] leading-tight font-semibold" title={channel.name}>{channel.name}</span>
                       <span className="text-muted-foreground text-[0.625rem]">{active?.available ? 'Tune on TV' : 'Unavailable'}</span>
                     </button>
                   </div>
