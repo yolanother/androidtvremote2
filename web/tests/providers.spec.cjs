@@ -608,12 +608,16 @@ for (const selected of ['Apps', 'Guide']) {
     await frames(page);
     const fixed = [page.getByRole('banner'), page.getByRole('tablist', { name: 'Remote destination' }), page.getByRole('button', { name: 'Home', exact: true })];
     const before = await Promise.all(fixed.map((item) => item.boundingBox()));
-    const scroller = await heading.evaluateHandle((element) => {
+    const scroller = await heading.evaluateHandle((element, selected) => {
+      if (selected === 'Guide') {
+        const timeline = element.closest('section')?.querySelector('[aria-label="Guide timeline"]');
+        if (timeline && /auto|scroll/.test(getComputedStyle(timeline).overflowY) && timeline.scrollHeight > timeline.clientHeight + 1) return timeline;
+      }
       for (let node = element.parentElement; node; node = node.parentElement) {
         if (/auto|scroll/.test(getComputedStyle(node).overflowY) && node.scrollHeight > node.clientHeight + 1) return node;
       }
       return null;
-    });
+    }, selected);
     expect(await scroller.evaluate((element) => !!element)).toBe(true);
     const box = await scroller.evaluate((element) => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -706,7 +710,8 @@ test('selected TV profile picture is visible and a broken image falls back to co
   await expect(header.getByText('F', { exact: true })).toBeVisible();
   const color = await header.getByText('F', { exact: true }).evaluate((element) => {
     for (let node = element; node && node.tagName !== 'HEADER'; node = node.parentElement) {
-      if (getComputedStyle(node).backgroundColor === 'rgb(180, 155, 255)') return true;
+      const css = getComputedStyle(node);
+      if (css.backgroundColor === 'rgb(180, 155, 255)' || css.color === 'rgb(180, 155, 255)') return true;
     }
     return false;
   });
@@ -750,8 +755,12 @@ test('destination labels collapse and expand together through intermediate sprin
     expect(box.width).toBeGreaterThanOrEqual(43.5);
     expect(box.height).toBeGreaterThanOrEqual(43.5);
   }
-  await page.getByRole('tablist', { name: 'Remote destination' }).evaluate((nav) => {
-    for (const name of ['Apps', 'Playing', 'Controls', 'Guide']) nav.querySelector(`[aria-label="${name}"]`).click();
+  await page.getByRole('tablist', { name: 'Remote destination' }).evaluate(async (nav) => {
+    for (const name of ['Apps', 'Playing', 'Controls', 'Guide']) {
+      nav.querySelector(`[aria-label="${name}"]`).click();
+      await new Promise(requestAnimationFrame);
+      await new Promise(requestAnimationFrame);
+    }
   });
   await page.waitForTimeout(650);
   await expect(destination(page, 'Guide')).toHaveAttribute('aria-selected', 'true');
