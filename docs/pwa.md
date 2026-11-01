@@ -192,8 +192,18 @@ by hand instead.
 
 `registerType` is `prompt`. When a new build is deployed, the waiting worker does not take
 over on its own — the app shows a "A new version of the remote is ready" banner with
-**Reload** and a dismiss button. The registration is also re-checked hourly, so a
-wall-mounted panel that is never reloaded still learns about a new build.
+**Reload** and a dismiss button. Returning to the installed app, focusing its window
+or reconnecting it checks for an update; duplicate events are limited to one check
+per minute and one request at a time. Offline/failing checks are caught and can be
+retried. The registration is also re-checked hourly, so a wall-mounted panel that
+is never reloaded still learns about a new build. An already-waiting worker is
+offered immediately on startup.
+
+The notice reserves its measured height above the remote, including the top safe
+area on a notched phone. It never floats over the touchpad or volume/navigation
+keys. Dismissing it restores the space. Only **Reload** activates the waiting
+worker: opening, focusing or reconnecting the app never interrupts a held key or
+text entry. Pairing and user preferences are retained during an update.
 
 Verified end to end: with the page open, a rebuild put the new worker into `waiting`, the
 banner appeared, the old build kept rendering, and clicking **Reload** activated the new

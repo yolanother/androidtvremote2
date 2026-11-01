@@ -18,6 +18,8 @@
  * browsing-side D-pad so essential controls stay visible without page scrolling.
  * The programme grid contains its own two-axis scroll, sticky service rail and ruler,
  * with compact artwork cells at every screen width.
+ * Height-constrained portrait workspaces reserve physical touch targets independently
+ * from enlarged text, and compact their chrome before reducing the input surface.
  */
 
 @custom-variant dark (&:is(.dark *));
@@ -227,6 +229,46 @@
   }
 }
 
+/* Query the remote's usable height, including space reserved for an update notice. */
+.tv-remote {
+  container: remote-viewport / size;
+}
+
+/* Icon hit targets must not grow with the user's text setting and crowd out neighbors. */
+.tv-destinations {
+  gap: 0;
+  padding: 4px;
+}
+
+.tv-destinations > button {
+  min-width: 44px;
+  min-height: 44px;
+  padding-inline: 4px;
+}
+
+.tv-destinations > button > svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tv-mode-picker {
+  width: 44px;
+  height: 44px;
+}
+
+.tv-mode-picker > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pwa-update-notice {
+  padding-top: max(8px, env(safe-area-inset-top));
+}
+
+.tv-remote-header {
+  padding-top: max(0.75rem, calc(env(safe-area-inset-top) - var(--pwa-update-height, 0px)));
+}
+
 /* Size containment makes these units describe the remaining control stage, after
    the action/navigation rows and core keys have taken their fixed space. */
 .tv-control-stage {
@@ -295,8 +337,76 @@
   }
 
   .tv-core-deck .key {
-    height: 2.5rem;
-    min-height: 2.5rem;
+    height: 44px;
+    min-height: 44px;
+  }
+}
+
+@container remote-viewport (max-width: 639px) and (max-height: 44rem) {
+  .tv-remote-header {
+    gap: 4px;
+    padding: max(6px, calc(env(safe-area-inset-top) - var(--pwa-update-height, 0px))) 12px 2px;
+  }
+
+  .tv-remote-header > button {
+    padding-block: 4px;
+  }
+
+  .tv-remote-header > a,
+  .tv-remote-header > div[title^='TV profile:'] {
+    width: 44px;
+    height: 44px;
+  }
+
+  .tv-navigation {
+    gap: 4px;
+    margin: 0 12px 4px;
+  }
+
+  .tv-remote-workspace {
+    gap: 6px;
+  }
+
+  .tv-remote-workspace > main {
+    padding: 0 12px 4px;
+  }
+
+  .tv-controls-main > div {
+    gap: 6px;
+    padding-block: 0;
+  }
+
+  .tv-remote-workspace > aside {
+    padding: 0 12px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .tv-core-deck {
+    gap: 6px;
+  }
+
+  .tv-core-deck > .grid {
+    gap: 6px;
+  }
+
+  .tv-core-deck .key {
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .tv-fitted-touchpad {
+    gap: 4px;
+  }
+
+  .tv-fitted-touchpad > p {
+    font-size: max(12px, 0.625rem);
+    line-height: 1.2;
+  }
+}
+
+@container remote-viewport (max-width: 639px) and (max-height: 520px) {
+  /* The surface already announces these instructions through its accessible name. */
+  .tv-fitted-touchpad > p {
+    display: none;
   }
 }
 

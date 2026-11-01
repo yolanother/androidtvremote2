@@ -24,6 +24,15 @@ labels collapse and expand together using the same spring motion as list expansi
 profile artwork and programme details. Reduced-motion preferences remove that travel
 and width animation; commands are always submitted immediately.
 
+The workspace follows the phone's actual visible height when browser chrome or
+the keyboard changes, and keeps its layout stable during pinch zoom. Short phone
+screens compact header spacing and core-key rows before reducing the input pad;
+44-pixel icon targets do not grow into neighboring tabs when text is enlarged.
+The selected-only elastic labels and single input-mode dropdown remain on one
+row. An installed-app update notice reserves space above the remote instead of
+covering the bottom controls; tap **Reload** to move a stale installed client to
+the latest layout without clearing its saved data.
+
 Apps show six available entries initially, ranked by the TV's recent foreground
 session counts when supplied. Entries sharing an Android package are combined,
 preferring a launchable service entry. View more opens the full inventory, including

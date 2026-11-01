@@ -11,6 +11,8 @@
  * label open, respecting reduced motion. Binds the physical
  * keyboard to the same key paths, replaces the controls with an actionable re-pair prompt
  * when the television reports `unpaired`, and surfaces appliance-socket loss as a banner.
+ * Budgets the actual visible phone height and in-flow update notice so enlarged text
+ * and installed-app updates cannot push the input surface or core keys off screen.
  */
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
@@ -31,6 +33,7 @@ import { RemoteHeader } from '@/components/RemoteHeader'
 import { TextEntry } from '@/components/TextEntry'
 import { Touchpad } from '@/components/Touchpad'
 import { useKeyboardControl, useRemoteControl } from '@/hooks/useRemoteControl'
+import { useVisibleViewportHeight } from '@/hooks/useVisibleViewportHeight'
 import { useIntegration } from '@/hooks/useIntegration'
 import { setLastDevice, useSurface, type Surface } from '@/lib/prefs'
 import { cn } from '@/lib/utils'
@@ -50,6 +53,7 @@ export function RemotePage() {
   const [pairingOpen, setPairingOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const { reduced, transition } = useOrganicMotion()
+  const viewportHeight = useVisibleViewportHeight()
 
   const control = useRemoteControl(device)
   const remote = useIntegration(device, surface)
@@ -86,7 +90,8 @@ export function RemotePage() {
   const unpaired = device.state.connection === 'unpaired' || !device.paired
 
   return (
-    <div className="tv-remote flex h-dvh min-w-0 flex-col overflow-hidden md:p-4 xl:p-6">
+    <div className="tv-remote flex min-w-0 flex-col overflow-hidden md:p-4 xl:p-6"
+      style={{ height: `calc(${viewportHeight}px - var(--pwa-update-height, 0px))` }}>
       <div className="tv-remote-frame bg-background mx-auto flex min-h-0 w-full max-w-[1700px] flex-1 flex-col md:rounded-3xl md:border md:p-4">
       <RemoteHeader
         device={device}
@@ -122,7 +127,7 @@ export function RemotePage() {
           className={cn('flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-xl px-2 text-xs font-medium sm:text-sm', destination === id ? 'bg-card shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
           <Icon aria-hidden className="size-4 shrink-0" /><motion.span aria-hidden={destination !== id} className="overflow-hidden whitespace-nowrap"
             initial={false} animate={{ width: destination === id ? 'auto' : 0, opacity: destination === id ? 1 : 0, marginLeft: destination === id ? 6 : 0 }}
-            transition={transition} style={{ maxWidth: 'clamp(2.5rem, 13vw, 5rem)' }}>
+            transition={transition} style={{ maxWidth: 'clamp(40px, 20vw, 88px)' }}>
             <span className="block truncate">{label}</span>
           </motion.span>
         </button>)}

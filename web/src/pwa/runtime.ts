@@ -9,6 +9,8 @@
  * `beforeinstallprompt` fires during page load and would otherwise be missed before the
  * settings screen mounts. Deliberately not loaded by embed.html: the embed view must stay
  * a plain, always-fresh document.
+ * Resuming or reconnecting the app rechecks for a new build with throttled, caught
+ * network work; a waiting build still activates only after explicit Reload.
  */
 import { registerSW } from 'virtual:pwa-register'
 
@@ -143,9 +145,32 @@ const updateSW = registerSW({
     emit()
   },
   onRegisteredSW(_url, registration) {
-    // A wall panel can sit on one page for weeks. Without a periodic check it would never
-    // learn that the appliance has been rebuilt.
-    if (registration) setInterval(() => void registration.update(), 60 * 60 * 1000)
+    if (!registration) return
+    if (registration.waiting) {
+      updateReady = true
+      emit()
+    }
+    let checking = false
+    let lastCheck = -Infinity
+    /** Check the resumed app once per minute, with one request and no offline rejection. */
+    const check = async () => {
+      if (document.visibilityState === 'hidden' || !navigator.onLine || checking || Date.now() - lastCheck < 60_000) return
+      checking = true
+      lastCheck = Date.now()
+      try {
+        await registration.update()
+      } catch {
+        // An offline or failed attempt can be retried when connectivity returns.
+        lastCheck = -Infinity
+      } finally {
+        checking = false
+      }
+    }
+    window.addEventListener('focus', check)
+    window.addEventListener('online', check)
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) void check() })
+    // A wall panel can sit on one page for weeks without a foreground transition.
+    setInterval(() => void check(), 60 * 60 * 1000)
   },
 })
 
