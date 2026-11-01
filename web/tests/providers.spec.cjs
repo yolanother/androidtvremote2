@@ -1329,8 +1329,10 @@ test('arrival of an update preserves an active held key and unsent text', async 
   expect(repeating).toBeGreaterThan(1);
   expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
   await page.mouse.up();
+  // Repeats remain valid until mouseup; measure the stopped stream after release.
+  const stopped = data.keys.filter((key) => key.key === 'DPAD_UP').length;
   await page.waitForTimeout(300);
-  expect(data.keys.filter((key) => key.key === 'DPAD_UP')).toHaveLength(repeating);
+  expect(data.keys.filter((key) => key.key === 'DPAD_UP')).toHaveLength(stopped);
   await page.getByRole('button', { name: 'Dismiss the update notice', exact: true }).click();
   await chooseMode(page, 'text');
   const text = page.getByRole('textbox', { name: 'Send text to the TV', exact: true });
