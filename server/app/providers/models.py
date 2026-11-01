@@ -3,7 +3,9 @@
 #
 # Validated version-1 wire models for optional Android TV Remote providers. Defines
 # provider/TV identities, device-scoped browsing and guide data, observed media sessions
-# and the fixed command allowlist. Unknown response fields are discarded so private
+# and the fixed command allowlist. Appliance commands additionally carry an optional
+# expected profile identity, stripped before forwarding the external v1 payload.
+# Unknown response fields are discarded so private
 # upstream state cannot accidentally become part of the remote's public API.
 """Versioned provider data and command contracts."""
 
@@ -236,6 +238,10 @@ class Command(BaseModel):
     direction: Literal["up", "down"] | None = Field(default=None, description="Channel-step direction.")
     session_id: str | None = Field(default=None, max_length=512, description="Expected observed media session.")
     position: float | None = Field(default=None, ge=0, description="Seek offset in seconds.")
+    profile_id: str | None = Field(
+        default=None, max_length=200,
+        description="Optional appliance-only expected profile identity; explicit null is meaningful.",
+    )
     profile_revision: str | None = Field(default=None, max_length=200, description="Expected profile revision.")
     schedule_revision: str | None = Field(default=None, max_length=200, description="Expected schedule revision.")
 

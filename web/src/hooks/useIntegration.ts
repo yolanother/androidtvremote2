@@ -156,7 +156,8 @@ export function useIntegration(device: Device | undefined, surface: Surface): Re
     setNotice(null)
     try {
       const result = await providerApi.command(deviceId, {
-        ...input, command_id: id, profile_revision: integration.profile_revision,
+        ...input, command_id: id, profile_id: integration.profile_id,
+        profile_revision: integration.profile_revision,
       }, controller.signal)
       if (controller.signal.aborted || scopeRef.current !== scope) return null
       if (result.status === 'failed') throw new Error(result.error || 'The TV could not complete that action.')

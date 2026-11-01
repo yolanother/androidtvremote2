@@ -5,6 +5,8 @@
  * TypeScript mirror of the generic version-one launcher provider contract. Describes
  * per-TV integration capabilities, catalogs, guide intervals, browsing/profile data,
  * observed playback and typed commands without private service names or API mappings.
+ * Appliance commands also carry an expected profile identity that is not forwarded
+ * as part of the external provider v1 protocol.
  */
 import type { MediaAction, PlayerState } from './api-types'
 
@@ -134,6 +136,8 @@ export interface ProviderCommand {
   direction?: 'up' | 'down'
   session_id?: string
   position?: number
+  /** Appliance-only expected profile identity; null explicitly means no active profile. */
+  profile_id?: string | null
   profile_revision?: string
   schedule_revision?: string
 }
@@ -146,4 +150,4 @@ export interface ProviderCommandResult {
 }
 
 /** UI command input; the scoped hook supplies UUID and current profile revision. */
-export type ProviderCommandInput = Omit<ProviderCommand, 'command_id' | 'profile_revision'>
+export type ProviderCommandInput = Omit<ProviderCommand, 'command_id' | 'profile_id' | 'profile_revision'>

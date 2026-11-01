@@ -5,7 +5,7 @@
  * Native provider playback surface with strict freshness and foreground matching.
  * Extrapolates observed progress locally, exposes only advertised session-scoped
  * actions and falls back to the existing Cast/app-identity view when the observation
- * expires, disagrees with the foreground app or is unavailable.
+ * expires, disagrees with the foreground app, is idle/unknown or is unavailable.
  */
 import { useEffect, useState } from 'react'
 import { Pause, Play, SkipBack, SkipForward, Square } from 'lucide-react'
@@ -21,6 +21,7 @@ import type { ProviderPlayback } from '@/lib/provider-types'
 /** A usable provider observation must be recent and describe the TV's foreground player. */
 function usable(playback: ProviderPlayback | null, device: Device, now: number): playback is ProviderPlayback {
   if (!playback) return false
+  if (!['PLAYING', 'PAUSED', 'BUFFERING'].includes(playback.player_state)) return false
   const age = now - Date.parse(playback.observed_at)
   const foreground = device.state.current_app
   return Number.isFinite(age) && age >= -5_000 && age <= 30_000

@@ -261,9 +261,13 @@ class ProviderRegistry:
                 "channel_step": "channel_step", "set_profile": "profiles",
             }.get(action, "playback")
             self._require_capability(reported, capability)
+            if "profile_id" in command.model_fields_set and command.profile_id != reported.profile_id:
+                raise InvalidRequest("TV profile has changed", status=409)
             if command.profile_revision is not None and command.profile_revision != reported.profile_revision:
                 raise InvalidRequest("TV profile has changed", status=409)
-            body = command.model_dump(mode="json", exclude_none=True)
+            # Expected identity protects this appliance's browser context. It is not
+            # part of the external provider v1 command protocol.
+            body = command.model_dump(mode="json", exclude_none=True, exclude={"profile_id"})
             body["profile_revision"] = reported.profile_revision
             assert endpoint.manifest is not None
             fingerprint = json.dumps([endpoint.manifest.id, reported.profile_id, body], sort_keys=True)
@@ -426,11 +430,14 @@ class ProviderRegistry:
             raise InvalidRequest("Guide requires timezone-aware from < to within 24 hours") from exc
 
     def _fresh_playback(self, device_id: str, playback: Playback) -> bool:
-        """Accept only recent, foreground-compatible observations; preserve Cast separately."""
+        """Accept only active, recent, foreground-compatible sessions; preserve Cast separately."""
         age = datetime.now(UTC) - playback.observed_at
         foreground = self.devices.get_device(device_id).state.current_app
         compatible = not foreground or foreground == "AndroidNativeApp" or not playback.package or foreground == playback.package
-        return timedelta(seconds=-5) <= age <= PLAYBACK_MAX_AGE and compatible
+        return (
+            playback.player_state in {"PLAYING", "PAUSED", "BUFFERING"}
+            and timedelta(seconds=-5) <= age <= PLAYBACK_MAX_AGE and compatible
+        )
 
     def _status(self, endpoint: _Endpoint) -> ProviderStatus:
         """Build a credential-free status for an endpoint, including unresolved failures."""
