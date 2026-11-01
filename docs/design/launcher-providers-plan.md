@@ -117,7 +117,8 @@ Add httpx as runtime dependency. Store provider enablement in existing settings 
 **Repository:** Docker Home Control, start from its current `origin/main`, not stale primary checkout.
 **Files:** create `server/utils/tv-provider.js`, `server/endpoints/tv-provider.js`,
 `server/utils/media/guide-schedule.js`; modify `server/endpoints/tv.js`, `server/server.js`;
-tests under `server/tests/`. Use existing media/guide, title, profile and enabled-service utilities.
+tests under `tests/server/` (the repository's existing Jest root). Use existing
+media/guide, title, profile and enabled-service utilities.
 
 **Interfaces:** Mount `/atvr/v1` contract above and launcher ingress `/api/tv/devices/register`,
 `/api/tv/devices/{id}/state`, `/api/tv/devices/{id}/watching`, `/api/tv/devices/{id}/connection` (WS).
