@@ -1376,3 +1376,70 @@ for (const height of [480, 560]) {
     });
   }
 }
+
+/** Check actual tab hit regions and the shared-row input picker on a device class. */
+async function expectSingleNavigationRow(page) {
+  const picker = await page.getByRole('combobox', { name: 'Control mode', exact: true }).boundingBox();
+  const tabs = await page.getByRole('tablist', { name: 'Remote destination' }).getByRole('tab').evaluateAll((elements) => elements.map((element) => {
+    const r = element.getBoundingClientRect();
+    return { x: r.x, y: r.y, right: r.right, width: r.width, height: r.height };
+  }));
+  expect(tabs).toHaveLength(4);
+  expect(picker.width).toBeGreaterThanOrEqual(44);
+  expect(picker.width).toBeLessThanOrEqual(48);
+  for (let i = 0; i < tabs.length; i++) {
+    const tab = tabs[i];
+    expect.soft(tab.width).toBeGreaterThanOrEqual(44);
+    expect.soft(tab.height).toBeGreaterThanOrEqual(44);
+    expect.soft(tab.right).toBeLessThanOrEqual(picker.x + 1);
+    expect.soft(Math.abs(tab.y + tab.height / 2 - picker.y - picker.height / 2)).toBeLessThanOrEqual(2);
+    if (i) expect.soft(tab.x).toBeGreaterThanOrEqual(tabs[i - 1].right - 1);
+  }
+}
+
+// Representative CSS viewports exercise narrow cover displays, a standard phone,
+// and unfolded layouts. These are device-class checks, not measurements of hardware.
+for (const viewport of [
+  { width: 344, height: 750 }, { width: 360, height: 780 },
+  { width: 690, height: 829 }, { width: 768, height: 960 }, { width: 884, height: 1104 },
+]) {
+  for (const font of [16, 24]) {
+    test(`cover and unfolded device class fits ${viewport.width}x${viewport.height} font${font}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      const data = fixtures(); await install(page, data);
+      await page.goto(`/d/${TV_A}`);
+      await chooseMode(page, 'dpad');
+      await page.addStyleTag({ content: `:root { font-size: ${font}px !important; }` });
+      await frames(page);
+      for (const mode of ['dpad', 'touch']) {
+        await chooseMode(page, mode);
+        await expectUnclippedSurface(page, page.locator('[data-remote-surface]').first());
+        await expectCoreKeysInViewport(page);
+        await expectSingleNavigationRow(page);
+      }
+      expect(data.commands).toEqual([]);
+      expect(data.keys).toEqual([]);
+    });
+  }
+}
+
+test('fold and orientation resize preserve the selected TV and input mode', async ({ page }) => {
+  await page.setViewportSize({ width: 344, height: 750 });
+  const data = fixtures(); await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await chooseMode(page, 'touch');
+  for (const viewport of [
+    { width: 690, height: 829 }, { width: 829, height: 690 }, { width: 344, height: 750 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await frames(page);
+    await expect(page.getByRole('combobox', { name: 'Control mode', exact: true })).toHaveValue('touch');
+    await expect(page.getByRole('button', { name: /Living Room TV/ }).first()).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/d/${TV_A}$`));
+    await expectUnclippedSurface(page, page.locator('[data-remote-surface]').first());
+    await expectCoreKeysInViewport(page);
+    await expectSingleNavigationRow(page);
+  }
+  expect(data.commands).toEqual([]);
+  expect(data.keys).toEqual([]);
+});
