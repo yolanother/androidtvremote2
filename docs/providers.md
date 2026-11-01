@@ -12,8 +12,8 @@ The public appliance can integrate a compatible launcher or media server without
 bundling that server's proprietary APIs. With no provider, pairing, keys, text,
 app links, power, volume and Google Cast continue to work normally.
 
-The selected-TV action bar includes the provider's profile picker. Controls,
-Apps, Guide (when available) and Playing share one compact icon row; only the
+The selected-TV action bar includes the provider's profile picker. In compact
+windows, Controls, Apps, Guide (when available) and Playing share one icon row; only the
 selected destination expands its name. The icon-width control-mode picker at the
 right selects D-pad, Touchpad or Text and remembers that choice when returning
 to Controls. D-pad and Touchpad fit the remaining viewport without scrolling,
@@ -23,6 +23,20 @@ keeps its own scroll area so fields and recent entries remain reachable. Destina
 labels collapse and expand together using the same spring motion as list expansion,
 profile artwork and programme details. Reduced-motion preferences remove that travel
 and width animation; commands are always submitted immediately.
+
+Roomy desktop windows (at least 1024 × 600 CSS pixels) show Apps, optional Guide and
+Playing without a separate Controls tab. A saved D-pad, Touchpad or Text surface
+opens Playing in the main pane while retaining that input in the right sidebar;
+explicit Apps or Guide selections remain available. This automatic Playing view
+does not replace the saved phone surface. The sidebar input and core keys stay
+mounted across content-tab changes, so text drafts and input positions remain
+stable. Its mode dropdown changes the input without leaving the content pane.
+Narrower windows and short landscape phones retain the dedicated Controls tab.
+
+Desktop keyboard remote shortcuts remain available while browsing, except when
+focus belongs to an editable field, native control, modal or focusable guide
+timeline. Provider playback, Google Cast and the normal app-identity/idle fallback
+all use the same Playing destination.
 
 The workspace follows the phone's actual visible height when browser chrome or
 the keyboard changes, and keeps its layout stable during pinch zoom. Short phone

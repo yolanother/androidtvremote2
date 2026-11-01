@@ -13,8 +13,10 @@
  * when the television reports `unpaired`, and surfaces appliance-socket loss as a banner.
  * Budgets the actual visible phone height and in-flow update notice so enlarged text
  * and installed-app updates cannot push the input surface or core keys off screen.
+ * Roomy desktops use Playing as the default content destination and keep the selected
+ * input surface mounted beside every content pane, without replacing mobile preferences.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { motion } from 'motion/react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { AppWindow, CalendarDays, Hand, Keyboard, Lock, MonitorPlay, Move, PlugZap, SlidersHorizontal, Tv } from 'lucide-react'
@@ -40,6 +42,21 @@ import { cn } from '@/lib/utils'
 import { useOrganicMotion } from '@/lib/motion'
 import { useDevice, useRemote } from '@/state/store'
 
+/** Desktop content mode needs enough width and height for persistent sidebar controls. */
+const DESKTOP_LAYOUT = '(min-width: 1024px) and (min-height: 600px)'
+
+/** Follow layout changes as a window is resized or a foldable screen changes size. */
+function watchDesktopLayout(listener: () => void): () => void {
+  const media = window.matchMedia(DESKTOP_LAYOUT)
+  media.addEventListener('change', listener)
+  return () => media.removeEventListener('change', listener)
+}
+
+/** Read the current spacious-layout match without storing a presentation preference. */
+function desktopLayout(): boolean {
+  return window.matchMedia(DESKTOP_LAYOUT).matches
+}
+
 /**
  * The remote screen for one television, selected by the `:deviceId` route parameter.
  */
@@ -54,19 +71,22 @@ export function RemotePage() {
   const [addOpen, setAddOpen] = useState(false)
   const { reduced, transition } = useOrganicMotion()
   const viewportHeight = useVisibleViewportHeight()
+  const desktop = useSyncExternalStore(watchDesktopLayout, desktopLayout, () => false)
+  const controlsSelected = surface === 'dpad' || surface === 'touch' || surface === 'text'
+  const contentSurface = desktop && controlsSelected ? 'media' : surface
 
   const control = useRemoteControl(device)
-  const remote = useIntegration(device, surface)
+  const remote = useIntegration(device, contentSurface)
   const available = !!remote.integration?.available
   const capabilities = available ? remote.integration!.capabilities : []
   const guideAvailable = capabilities.includes('guide')
-  const controlsSelected = surface === 'dpad' || surface === 'touch' || surface === 'text'
   const activeMode = controlsSelected ? surface : controlMode
   const ModeIcon = activeMode === 'touch' ? Hand : activeMode === 'text' ? Keyboard : Move
-  const destination = surface === 'apps' ? 'apps' : surface === 'media' ? 'media' : surface === 'guide' && guideAvailable ? 'guide' : 'controls'
+  const destination = contentSurface === 'apps' ? 'apps' : contentSurface === 'media' ? 'media'
+    : contentSurface === 'guide' && guideAvailable ? 'guide' : desktop ? 'media' : 'controls'
   // Modal dialogs own the keyboard while they are open, or Escape would send BACK to the
   // TV instead of closing them.
-  useKeyboardControl(control, !pairingOpen && !addOpen && destination === 'controls')
+  useKeyboardControl(control, !pairingOpen && !addOpen && (desktop || destination === 'controls'))
 
   useEffect(() => {
     if (deviceId) setLastDevice(deviceId)
@@ -118,7 +138,7 @@ export function RemotePage() {
       <div className="tv-navigation mx-4 mb-2 flex min-w-0 shrink-0 items-center gap-2 md:mx-0">
       <div role="tablist" aria-label="Remote destination" className="tv-destinations bg-secondary flex min-w-0 gap-1 rounded-2xl p-1">
         {([
-          { id: 'controls', label: 'Controls', Icon: SlidersHorizontal },
+          ...(!desktop ? [{ id: 'controls', label: 'Controls', Icon: SlidersHorizontal }] : []),
           { id: 'apps', label: 'Apps', Icon: AppWindow },
           ...(guideAvailable ? [{ id: 'guide', label: 'Guide', Icon: CalendarDays }] : []),
           { id: 'media', label: 'Playing', Icon: MonitorPlay },
@@ -136,7 +156,11 @@ export function RemotePage() {
         className="tv-mode-picker bg-secondary focus-within:ring-ring relative ml-auto grid size-11 shrink-0 place-items-center rounded-xl focus-within:ring-2">
         <ModeIcon aria-hidden className="pointer-events-none size-5" />
         <select aria-label="Control mode" value={activeMode}
-          onChange={(event) => { const mode = event.target.value as 'dpad' | 'touch' | 'text'; setControlMode(mode); setSurface(mode) }}
+          onChange={(event) => {
+            const mode = event.target.value as 'dpad' | 'touch' | 'text'
+            setControlMode(mode)
+            if (!desktop || controlsSelected) setSurface(mode)
+          }}
           className="absolute inset-0 size-full cursor-pointer opacity-0">
           <option value="dpad">D-pad</option><option value="touch">Touchpad</option><option value="text">Text</option>
         </select>
@@ -173,9 +197,14 @@ export function RemotePage() {
           )}
         </main>
 
-        <aside aria-label={`Core controls for ${device.name}`} className="w-full min-w-0 shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:min-h-0 md:overflow-y-auto md:border-l md:pl-5 md:pr-0 md:pb-0">
-          <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-5">
-            {destination !== 'controls' && !unpaired && <div className="tv-side-dpad hidden w-full flex-col items-center gap-3 md:flex"><p className="text-muted-foreground text-xs">Remote · {device.name}</p><DPad control={control} className="w-full max-w-52" /></div>}
+        <aside aria-label={`Core controls for ${device.name}`} className={cn('w-full min-w-0 shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:min-h-0 md:overflow-y-auto md:border-l md:pl-5 md:pr-0 md:pb-0', desktop && 'tv-desktop-sidebar')}>
+          <div className="tv-remote-control-column mx-auto flex w-full max-w-sm flex-col items-center gap-5">
+            {desktop && !unpaired && <section key={device.id} aria-label="Remote controls" className={cn('tv-desktop-control-stage tv-control-stage min-w-0', activeMode === 'text' && 'tv-control-stage-text')}>
+              {activeMode === 'dpad' && <DPad control={control} className="tv-fitted-dpad" />}
+              {activeMode === 'touch' && <Touchpad control={control} className="tv-fitted-touchpad" />}
+              {activeMode === 'text' && <TextEntry control={control} />}
+            </section>}
+            {!desktop && destination !== 'controls' && !unpaired && <div className="tv-side-dpad hidden w-full flex-col items-center gap-3 md:flex"><p className="text-muted-foreground text-xs">Remote · {device.name}</p><DPad control={control} className="w-full max-w-52" /></div>}
             <Deck control={control} state={device.state} />
           </div>
         </aside>

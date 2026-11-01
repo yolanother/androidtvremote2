@@ -7,6 +7,8 @@
  * with haptic ticks, optimistic local updates for mute and power so those controls feel
  * instant, and a whole-document physical-keyboard binding that drives the same paths.
  * Every failure is captured as a displayable message rather than thrown at the component.
+ * Keyboard bindings leave editable fields, native controls, dialogs and focusable
+ * browsing regions in charge of their own input when desktop controls remain available.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -194,7 +196,8 @@ export function useRemoteControl(device: Device | undefined): RemoteControl {
  *
  * Repeats are driven by our own timer rather than the OS auto-repeat so the cadence
  * matches the on-screen buttons on every platform. Bindings are suppressed while focus is
- * inside a text field so the text surface still types normally.
+ * inside a text field, native control, dialog or focusable browsing region so those
+ * surfaces retain their own typing and navigation.
  *
  * @param control - The control returned by `useRemoteControl`.
  * @param enabled - False to leave the keyboard alone, e.g. while a modal is open.
@@ -220,7 +223,7 @@ export function useKeyboardControl(control: RemoteControl, enabled: boolean): vo
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return
       // Native controls own their keyboard activation and browsing navigation.
-      if (event.target instanceof Element && event.target.closest('button, [role="tab"], select, dialog')) return
+      if (event.target instanceof Element && event.target.closest('button, [role="tab"], select, dialog, [role="region"][tabindex]')) return
       const key = keyForEvent(event)
       if (!key) return
       event.preventDefault()

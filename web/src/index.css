@@ -20,6 +20,8 @@
  * with compact artwork cells at every screen width.
  * Height-constrained portrait workspaces reserve physical touch targets independently
  * from enlarged text, and compact their chrome before reducing the input surface.
+ * Roomy desktop sidebars keep a fitted input surface above persistent core keys while
+ * content destinations change independently in the main pane.
  */
 
 @custom-variant dark (&:is(.dark *));
@@ -309,6 +311,21 @@
   justify-content: center;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* A content-tab change never replaces the desktop input or moves its core keys. */
+.tv-desktop-sidebar > .tv-remote-control-column {
+  height: 100%;
+}
+
+.tv-desktop-control-stage {
+  width: 100%;
+  min-height: 160px;
+  flex: 1 0 160px;
+}
+
+.tv-desktop-sidebar .tv-core-deck {
+  flex-shrink: 0;
 }
 
 @media (min-width: 640px) and (max-height: 600px) {
