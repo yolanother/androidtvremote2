@@ -28,6 +28,8 @@ export interface HoldBindings {
   onPointerUp: () => void
   onPointerCancel: () => void
   onLostPointerCapture: () => void
+  /** Native keyboard activation has no pointer-down event to start the hold. */
+  onClick: (event: React.MouseEvent<HTMLElement>) => void
 }
 
 /** Everything a control surface needs to drive one TV. */
@@ -115,6 +117,7 @@ export function useRemoteControl(device: Device | undefined): RemoteControl {
       onPointerUp: release,
       onPointerCancel: release,
       onLostPointerCapture: release,
+      onClick: (event) => { if (event.detail === 0) send(key) },
     }),
     [release, startHold],
   )
@@ -216,6 +219,8 @@ export function useKeyboardControl(control: RemoteControl, enabled: boolean): vo
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return
+      // Native controls own their keyboard activation and browsing navigation.
+      if (event.target instanceof Element && event.target.closest('button, [role="tab"], select, dialog')) return
       const key = keyForEvent(event)
       if (!key) return
       event.preventDefault()

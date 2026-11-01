@@ -6,7 +6,7 @@
  * localStorage behind a tiny subscribable store so that every component reading a value
  * re-renders when any other component changes it, and applies the colour theme (light,
  * dark, or follow-system) to the document element. Holds the theme, the remembered control
- * surface, and the last device the user was driving.
+ * surface separately for each television, and the last device the user was driving.
  */
 import { useSyncExternalStore } from 'react'
 
@@ -14,7 +14,7 @@ import { useSyncExternalStore } from 'react'
 export type Theme = 'light' | 'dark' | 'system'
 
 /** Which control surface the remote shows in its stage area. */
-export type Surface = 'dpad' | 'touch' | 'text' | 'apps' | 'media'
+export type Surface = 'dpad' | 'touch' | 'text' | 'apps' | 'guide' | 'media'
 
 const listeners = new Set<() => void>()
 
@@ -115,14 +115,16 @@ export function useTheme(): [Theme, (theme: Theme) => void] {
  * on the touchpad (or the D-pad) they chose last time.
  *
  * @returns A tuple of the current surface and a setter that persists it.
+ * @param deviceId - Optional TV identity; selected destinations do not leak across TVs.
  */
-export function useSurface(): [Surface, (surface: Surface) => void] {
+export function useSurface(deviceId?: string): [Surface, (surface: Surface) => void] {
+  const key = deviceId ? `${SURFACE_KEY}.${deviceId}` : SURFACE_KEY
   const surface = useSyncExternalStore(
     subscribe,
-    () => read<Surface>(SURFACE_KEY, 'dpad'),
+    () => read<Surface>(key, 'dpad'),
     () => 'dpad' as Surface,
   )
-  return [surface, (next: Surface) => write(SURFACE_KEY, next)]
+  return [surface, (next: Surface) => write(key, next)]
 }
 
 /**

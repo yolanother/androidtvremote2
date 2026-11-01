@@ -2,29 +2,34 @@
  * Copyright (c) Yolan. Use of this file is governed by the LICENSE file in the
  * repository root.
  *
- * The main remote screen of the Android TV Remote web UI. Composes the persistent header,
- * the swappable stage (D-pad, touchpad, text, app launcher, or now playing), and the fixed deck of
- * navigation, transport, and volume keys into a frame that fills the viewport and never
- * scrolls, so a swipe on the touchpad cannot rubber-band the page. Binds the physical
+ * The selected-TV remote workspace. Provides Controls, Apps, optional Guide and Playing
+ * destinations with a persistent header and core keys; phones use a single content pane
+ * and tablets/desktops gain a wider browsing pane beside remote controls. Content panes
+ * scroll independently so touchpad gestures cannot rubber-band the page. Binds the physical
  * keyboard to the same key paths, replaces the controls with an actionable re-pair prompt
  * when the television reports `unpaired`, and surfaces appliance-socket loss as a banner.
  */
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { Lock, PlugZap, Tv } from 'lucide-react'
+import { AppWindow, CalendarDays, Lock, MonitorPlay, PlugZap, SlidersHorizontal, Tv } from 'lucide-react'
 
 import { AddDeviceDialog } from '@/components/AddDeviceDialog'
 import { AppLauncher } from '@/components/AppLauncher'
 import { Btn, ErrorStrip } from '@/components/ui'
 import { DPad } from '@/components/DPad'
 import { Deck } from '@/components/Deck'
-import { NowPlaying } from '@/components/NowPlaying'
+import { Guide } from '@/components/Guide'
+import { MediaBrowse } from '@/components/MediaBrowse'
+import { ProviderApps } from '@/components/ProviderApps'
+import { ProviderPlaying } from '@/components/ProviderPlaying'
 import { PairingDialog } from '@/components/PairingDialog'
 import { RemoteHeader } from '@/components/RemoteHeader'
 import { TextEntry } from '@/components/TextEntry'
 import { Touchpad } from '@/components/Touchpad'
 import { useKeyboardControl, useRemoteControl } from '@/hooks/useRemoteControl'
-import { setLastDevice, useSurface } from '@/lib/prefs'
+import { useIntegration } from '@/hooks/useIntegration'
+import { setLastDevice, useSurface, type Surface } from '@/lib/prefs'
+import { cn } from '@/lib/utils'
 import { useDevice, useRemote } from '@/state/store'
 
 /**
@@ -35,14 +40,21 @@ export function RemotePage() {
   const navigate = useNavigate()
   const { state } = useRemote()
   const device = useDevice(deviceId)
-  const [surface, setSurface] = useSurface()
+  const [surface, setSurface] = useSurface(deviceId)
+  const [controlMode, setControlMode] = useState<'dpad' | 'touch' | 'text'>('dpad')
   const [pairingOpen, setPairingOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
 
   const control = useRemoteControl(device)
+  const remote = useIntegration(device, surface)
+  const available = !!remote.integration?.available
+  const capabilities = available ? remote.integration!.capabilities : []
+  const guideAvailable = capabilities.includes('guide')
+  const controlsSelected = surface === 'dpad' || surface === 'touch' || surface === 'text'
+  const destination = surface === 'apps' ? 'apps' : surface === 'media' ? 'media' : surface === 'guide' && guideAvailable ? 'guide' : 'controls'
   // Modal dialogs own the keyboard while they are open, or Escape would send BACK to the
   // TV instead of closing them.
-  useKeyboardControl(control, !pairingOpen && !addOpen)
+  useKeyboardControl(control, !pairingOpen && !addOpen && destination === 'controls')
 
   useEffect(() => {
     if (deviceId) setLastDevice(deviceId)
@@ -62,15 +74,22 @@ export function RemotePage() {
   const unpaired = device.state.connection === 'unpaired' || !device.paired
 
   return (
-    // On a phone the remote is the whole screen. On a large display it becomes a remote
-    // *body* — a bounded, raised panel — rather than controls floating in a white field.
-    <div className="flex h-dvh flex-col overflow-hidden lg:items-center lg:justify-center lg:p-8">
-      <div className="flex min-h-0 w-full flex-1 flex-col lg:h-auto lg:max-w-3xl lg:flex-none lg:rounded-3xl lg:border lg:bg-card lg:p-6 lg:shadow-2xl">
+    <div className="flex h-dvh min-w-0 flex-col overflow-hidden md:p-4 xl:p-6">
+      <div className="bg-background mx-auto flex min-h-0 w-full max-w-[1700px] flex-1 flex-col md:rounded-3xl md:border md:p-4">
       <RemoteHeader
         device={device}
         onSelect={(id) => void navigate(`/d/${id}`)}
         onAdd={() => setAddOpen(true)}
       />
+
+      {capabilities.includes('profiles') && remote.profiles && <div className="mb-3 flex min-w-0 items-center gap-3 px-4 text-xs md:px-0">
+        <label htmlFor="tv-profile" className="text-muted-foreground shrink-0">TV profile</label>
+        <select id="tv-profile" aria-label="TV profile" value={remote.integration?.profile_id ?? remote.profiles.active_id ?? ''}
+          disabled={remote.pending} onChange={(event) => void remote.send({ action: 'set_profile', item_id: event.target.value })}
+          className="bg-card min-h-11 min-w-0 max-w-64 rounded-xl border px-3 text-sm">
+          {remote.profiles.items.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+        </select>
+      </div>}
 
       {state.socket !== 'open' && (
         <div
@@ -84,37 +103,60 @@ export function RemotePage() {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col items-center gap-4 lg:flex-row lg:items-center lg:justify-center lg:gap-10">
-        {/* Stage. Only the app grid and text history scroll; the frame itself never does. */}
-        <main className="flex min-h-0 w-full flex-1 items-center justify-center overflow-y-auto overscroll-contain px-4 lg:max-w-xl">
+      <div role="tablist" aria-label="Remote destination" className={cn('bg-secondary mx-4 mb-3 grid shrink-0 gap-1 rounded-2xl p-1 md:mx-0', guideAvailable ? 'grid-cols-4' : 'grid-cols-3')}>
+        {([
+          { id: 'controls', label: 'Controls', Icon: SlidersHorizontal },
+          { id: 'apps', label: 'Apps', Icon: AppWindow },
+          ...(guideAvailable ? [{ id: 'guide', label: 'Guide', Icon: CalendarDays }] : []),
+          { id: 'media', label: 'Playing', Icon: MonitorPlay },
+        ]).map(({ id, label, Icon }) => <button key={id} type="button" role="tab" aria-selected={destination === id}
+          onClick={() => setSurface(id === 'controls' ? controlMode : id as Surface)}
+          className={cn('flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-1 text-xs font-medium sm:text-sm', destination === id ? 'bg-card shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+          <Icon aria-hidden className="size-4 shrink-0" />{label}
+        </button>)}
+      </div>
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 md:grid md:grid-cols-[minmax(0,1fr)_17rem] md:gap-5 xl:grid-cols-[minmax(0,1fr)_19rem]">
+        <main aria-label={`${device.name} remote content`} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3 md:px-0">
           {unpaired ? (
             <RePairPrompt name={device.name} reason={device.state.error} onPair={() => setPairingOpen(true)} />
           ) : (
-            <div className="flex w-full flex-col items-center gap-3 py-2">
+            <div className="flex w-full min-w-0 flex-col gap-3 py-2">
               <ErrorStrip message={control.error} onDismiss={control.clearError} />
-              {surface === 'dpad' && <DPad control={control} />}
-              {surface === 'touch' && <Touchpad control={control} />}
-              {surface === 'text' && <TextEntry control={control} />}
-              {surface === 'apps' && (
-                <AppLauncher control={control} apps={state.apps} state={device.state} />
-              )}
-              {surface === 'media' && (
-                <NowPlaying device={device} apps={state.apps} control={control} />
-              )}
+              <ErrorStrip message={remote.error} onDismiss={remote.clearError} />
+              {remote.message && <p role="status" className="text-muted-foreground rounded-xl border px-3 py-2 text-xs">{remote.message}</p>}
+              {surface === 'guide' && !guideAvailable && <p role="status" className="text-muted-foreground text-sm">The guide is unavailable. You can still use the standard remote controls.</p>}
+              {destination === 'controls' && <section aria-label="Remote controls" className="flex min-w-0 flex-col items-center gap-4">
+                <div role="group" aria-label="Control mode" className="bg-secondary grid w-full max-w-sm grid-cols-3 gap-1 rounded-xl p-1">
+                  {(['dpad', 'touch', 'text'] as const).map((mode) => <button key={mode} type="button" aria-pressed={(controlsSelected ? surface : controlMode) === mode}
+                    onClick={() => { setControlMode(mode); setSurface(mode) }} className={cn('min-h-10 cursor-pointer rounded-lg text-xs font-medium', (controlsSelected ? surface : controlMode) === mode && 'bg-card shadow-sm')}>
+                    {mode === 'dpad' ? 'D-pad' : mode === 'touch' ? 'Touchpad' : 'Text'}
+                  </button>)}
+                </div>
+                {(controlsSelected ? surface : controlMode) === 'dpad' && <DPad control={control} />}
+                {(controlsSelected ? surface : controlMode) === 'touch' && <Touchpad control={control} />}
+                {(controlsSelected ? surface : controlMode) === 'text' && <TextEntry control={control} />}
+                <p className="text-muted-foreground max-w-sm text-center text-xs">Controlling {device.name}</p>
+              </section>}
+              {destination === 'apps' && <>
+                {capabilities.includes('catalog') ? <ProviderApps remote={remote} deviceName={device.name} /> : <section className="flex flex-col items-center gap-3">
+                  <h2 className="self-start text-lg font-semibold">App shortcuts</h2><p className="text-muted-foreground self-start text-xs">Popular apps. Availability varies by TV.</p>
+                  <AppLauncher control={control} apps={state.apps} state={device.state} />
+                </section>}
+                {capabilities.includes('browse') && <MediaBrowse key={remote.scope} deviceId={device.id} remote={remote} />}
+              </>}
+              {destination === 'guide' && <Guide key={remote.scope} deviceId={device.id} deviceName={device.name} remote={remote} />}
+              {destination === 'media' && <div className="flex justify-center"><ProviderPlaying key={device.id} remote={remote} device={device} apps={state.apps} control={control} /></div>}
             </div>
           )}
         </main>
 
-        <div className="w-full shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:w-auto lg:pb-0">
-          <div className="mx-auto flex justify-center">
-            <Deck
-              control={control}
-              state={device.state}
-              surface={surface}
-              onSurfaceChange={setSurface}
-            />
+        <aside aria-label={`Core controls for ${device.name}`} className="w-full min-w-0 shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:min-h-0 md:overflow-y-auto md:border-l md:pl-5 md:pr-0 md:pb-0">
+          <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-5">
+            {destination !== 'controls' && !unpaired && <div className="hidden w-full flex-col items-center gap-3 md:flex"><p className="text-muted-foreground text-xs">Remote · {device.name}</p><DPad control={control} className="w-full max-w-52" /></div>}
+            <Deck control={control} state={device.state} />
           </div>
-        </div>
+        </aside>
       </div>
 
       </div>

@@ -7,7 +7,7 @@
  * one (established by probing an authenticated endpoint without credentials, since the
  * contract exposes no flag for it), and offers the light/dark/system theme override. Also
  * reports the appliance's health and version from the always-unauthenticated `/healthz`,
- * and hosts the progressive-web-app install section.
+ * hosts progressive-web-app installation and manages discovered optional providers.
  */
 import { useEffect, useState } from 'react'
 import { KeyRound, Monitor, Moon, Palette, Server, ShieldCheck, ShieldOff, Sun } from 'lucide-react'
@@ -20,6 +20,7 @@ import { getToken, setToken } from '@/lib/api'
 import { useHealth } from '@/lib/useHealth'
 import { useTheme, type Theme } from '@/lib/prefs'
 import { InstallSection } from '@/pwa/InstallSection'
+import { ProviderSettings } from '@/components/ProviderSettings'
 
 /** Whether the appliance rejects unauthenticated requests. */
 type AuthState = 'checking' | 'required' | 'open'
@@ -76,7 +77,7 @@ export function SettingsPage() {
     <Page>
       <PageHeader
         title="Settings"
-        description="Preferences are stored in this browser only. Nothing here is sent to the appliance except the access token."
+        description="Appearance and access token stay in this browser. Launcher integration choices are saved on the appliance."
       />
 
       <ErrorStrip message={error} onDismiss={() => setError(null)} />
@@ -168,6 +169,7 @@ export function SettingsPage() {
       </Card>
 
       <InstallSection />
+      <ProviderSettings />
 
       <Card>
         <SectionHeading

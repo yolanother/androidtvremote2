@@ -7,8 +7,10 @@
  * DiscoveredDevice, KeyDescriptor and AppDescriptor models, every request/response body,
  * the tagged union of WebSocket server events, and the error envelope. This is the single
  * source of truth shared by the web SPA, the embeddable remote, and the Tauri tray app,
- * so all three compile without a running backend.
+ * so all three compile without a running backend. Optional provider metadata stays
+ * separate from the existing Cast-backed DeviceState.
  */
+import type { Integration, ProviderStatus } from './provider-types'
 
 /** Connection lifecycle reported by the server for a registered device. */
 export type ConnectionStatus =
@@ -227,6 +229,7 @@ export type ApiErrorCode =
   | 'invalid_key'
   | 'invalid_request'
   | 'no_media_session'
+  | 'provider_unavailable'
   | 'not_found'
   | 'unauthorized'
   | 'internal_error'
@@ -248,6 +251,8 @@ export interface SnapshotEvent {
   type: 'snapshot'
   devices: Device[]
   discovered: DiscoveredDevice[]
+  providers?: ProviderStatus[]
+  integrations?: Integration[]
 }
 
 export interface DeviceAddedEvent {
@@ -297,6 +302,8 @@ export type ServerEvent =
   | DiscoveryEvent
   | PairingEvent
   | PongEvent
+  | { type: 'integration.updated'; device_id: string; integration: Integration }
+  | { type: 'provider.updated'; provider: ProviderStatus }
 
 /** Every frame a client may send over `/api/ws`. Control happens over REST, not here. */
 export type ClientEvent = { type: 'ping' }

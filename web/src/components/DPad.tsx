@@ -58,8 +58,9 @@ const WEDGES: Array<{
  * The D-pad surface.
  *
  * @param props.control - The bound remote control for the active device.
+ * @param props.className - Optional responsive sizing for a browsing side pane.
  */
-export function DPad({ control }: { control: RemoteControl }) {
+export function DPad({ control, className }: { control: RemoteControl; className?: string }) {
   const { hold, disabled } = control
 
   return (
@@ -69,6 +70,7 @@ export function DPad({ control }: { control: RemoteControl }) {
         'relative aspect-square w-[min(84vw,19rem)] shrink-0 rounded-full',
         'bg-card border shadow-lg',
         disabled && 'pointer-events-none opacity-40',
+        className,
       )}
     >
       {/* The wedges live inside a clipping circle so their straight outer edges read as

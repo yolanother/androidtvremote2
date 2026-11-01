@@ -4,7 +4,7 @@
  *
  * Central client-side state for the Android TV Remote web UI. Defines the store shape
  * (registered devices, discovered devices, live socket health, in-flight pairing sessions,
- * and the key/app catalogs), the reducer that folds the WebSocket `snapshot` frame and
+ * the key/app catalogs and per-TV provider invalidations), the reducer that folds the WebSocket `snapshot` frame and
  * every subsequent delta into it, the optimistic local patch used to make mute and power
  * feel instant, and the React context plus selector hooks that components read it through.
  * This is the single source of truth the whole SPA renders from; nothing polls.
@@ -19,6 +19,7 @@ import type {
   PairingStatus,
   ServerEvent,
 } from '@/lib/api-types'
+import type { Integration, ProviderStatus } from '@/lib/provider-types'
 
 /** Health of the browser's own connection to the appliance (not to any TV). */
 export type SocketStatus = 'connecting' | 'open' | 'closed'
@@ -40,6 +41,12 @@ export interface RemoteState {
   ready: boolean
   /** Live pairing handshakes, keyed by device id. */
   pairing: Record<string, PairingSession>
+  /** Optional provider associations, never mixed with Cast device state. */
+  integrations: Record<string, Integration>
+  /** Increment even when metadata is unchanged: resource contents may have changed. */
+  integrationVersions: Record<string, number>
+  /** Credential-free network provider health and enablement. */
+  providers: ProviderStatus[]
 }
 
 /** The empty store, before the socket has delivered anything. */
@@ -51,6 +58,9 @@ export const initialState: RemoteState = {
   socket: 'connecting',
   ready: false,
   pairing: {},
+  integrations: {},
+  integrationVersions: {},
+  providers: [],
 }
 
 /** Actions the provider dispatches; `event` carries anything the server pushed. */
@@ -121,6 +131,9 @@ function applyEvent(state: RemoteState, event: ServerEvent): RemoteState {
         ...state,
         devices: event.devices,
         discovered: event.discovered,
+        integrations: Object.fromEntries((event.integrations ?? []).map((item) => [item.device_id, item])),
+        integrationVersions: Object.fromEntries(event.devices.map((device) => [device.id, (state.integrationVersions[device.id] ?? 0) + 1])),
+        providers: event.providers ?? [],
         ready: true,
       }
 
@@ -144,6 +157,19 @@ function applyEvent(state: RemoteState, event: ServerEvent): RemoteState {
           ...state.pairing,
           [event.device_id]: { status: event.status, error: event.error },
         },
+      }
+
+    case 'integration.updated':
+      return {
+        ...state,
+        integrations: { ...state.integrations, [event.device_id]: event.integration },
+        integrationVersions: { ...state.integrationVersions, [event.device_id]: (state.integrationVersions[event.device_id] ?? 0) + 1 },
+      }
+
+    case 'provider.updated':
+      return {
+        ...state,
+        providers: [...state.providers.filter((provider) => provider.id !== event.provider.id), event.provider],
       }
 
     case 'pong':

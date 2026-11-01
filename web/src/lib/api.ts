@@ -36,6 +36,7 @@ const ERROR_MESSAGES: Record<ApiErrorCode, string> = {
   invalid_key: 'That key is not supported by this TV.',
   invalid_request: 'The appliance rejected that request as malformed.',
   no_media_session: 'Nothing is casting to this TV, so there is no playback to control.',
+  provider_unavailable: 'This TV’s optional service is unavailable. The remote controls still work.',
   not_found: 'That appliance endpoint does not exist.',
   unauthorized: 'This appliance requires an access token. Add it in Settings.',
   internal_error: 'The appliance hit an unexpected error.',
@@ -107,11 +108,12 @@ export function errorMessage(err: unknown): string {
  * Issue a request against the appliance and decode its JSON body.
  *
  * @param path - Path below the origin, e.g. `/api/devices`.
- * @param init - Optional method/body overrides; a JSON body is serialised automatically.
+ * @param init - Optional method/body overrides and cancellation signal; JSON is serialized automatically.
  * @returns The decoded response body, or undefined for a 204.
  * @throws {ApiError} When the response is non-2xx, or the appliance is unreachable.
+ * @throws {DOMException} With name AbortError when the caller cancels a scoped request.
  */
-async function request<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+export async function request<T>(path: string, init?: { method?: string; body?: unknown; signal?: AbortSignal }): Promise<T> {
   const headers: Record<string, string> = {}
   const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
@@ -123,8 +125,10 @@ async function request<T>(path: string, init?: { method?: string; body?: unknown
       method: init?.method ?? 'GET',
       headers,
       body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+      signal: init?.signal,
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new ApiError('unreachable', 'Cannot reach the remote appliance.', 0)
   }
 
