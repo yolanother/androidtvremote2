@@ -262,7 +262,13 @@
 }
 
 .pwa-update-notice {
-  padding-top: max(8px, env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+}
+
+@media (min-width: 640px) {
+  .pwa-update-notice {
+    padding-top: max(8px, env(safe-area-inset-top));
+  }
 }
 
 .tv-remote-header {
@@ -345,11 +351,12 @@
 @container remote-viewport (max-width: 639px) and (max-height: 44rem) {
   .tv-remote-header {
     gap: 4px;
-    padding: max(6px, calc(env(safe-area-inset-top) - var(--pwa-update-height, 0px))) 12px 2px;
+    padding: max(4px, calc(env(safe-area-inset-top) - var(--pwa-update-height, 0px))) 12px 0;
   }
 
   .tv-remote-header > button {
-    padding-block: 4px;
+    min-height: 44px;
+    padding-block: 0;
   }
 
   .tv-remote-header > a,

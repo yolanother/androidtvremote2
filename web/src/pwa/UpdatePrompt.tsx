@@ -44,14 +44,14 @@ export function UpdatePrompt() {
     <div
       ref={ref}
       role="status"
-      className="pwa-update-notice bg-card ring-border flex items-center gap-2 border-b px-3 py-2"
+      className="pwa-update-notice bg-card ring-border flex items-center gap-[8px] border-b px-[12px] py-0 sm:py-2"
     >
-      <RefreshCw aria-hidden className="size-5 shrink-0" />
-      <p className="min-w-0 flex-1 text-sm">A new version of the remote is ready.</p>
+      <RefreshCw aria-hidden className="hidden size-5 shrink-0 sm:block" />
+      <p className="min-w-0 flex-1 text-sm"><span className="sm:hidden">Update ready</span><span className="hidden sm:inline">A new version of the remote is ready.</span></p>
       <button
         type="button"
         onClick={applyUpdate}
-        className="bg-primary text-primary-foreground min-h-[44px] shrink-0 cursor-pointer rounded-xl px-3 text-sm font-medium transition-opacity hover:opacity-90"
+        className="bg-primary text-primary-foreground min-h-[44px] shrink-0 cursor-pointer rounded-xl px-[12px] text-sm font-medium transition-opacity hover:opacity-90"
       >
         Reload
       </button>

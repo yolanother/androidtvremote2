@@ -204,6 +204,8 @@ area on a notched phone. It never floats over the touchpad or volume/navigation
 keys. Dismissing it restores the space. Only **Reload** activates the waiting
 worker: opening, focusing or reconnecting the app never interrupts a held key or
 text entry. Pairing and user preferences are retained during an update.
+On phones the notice uses the concise “Update ready” label and 44-pixel actions,
+so enlarged text does not turn an update message into a multi-line control obstruction.
 
 Verified end to end: with the page open, a rebuild put the new worker into `waiting`, the
 banner appeared, the old build kept rendering, and clicking **Reload** activated the new
