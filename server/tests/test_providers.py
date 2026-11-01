@@ -745,3 +745,42 @@ def test_inflight_results_are_rejected_after_profile_id_changes_with_same_revisi
         response = client.portal.call(switch_profile_during_request)
         assert response.status_code in (400, 409)
         assert response.json()["error"]["code"] == "invalid_request"
+
+
+@pytest.mark.parametrize("expected_profile", ["family", None])
+def test_command_expected_profile_id_is_checked_and_not_forwarded(
+    tmp_path: Path, fake_remote: Any, expected_profile: str | None
+) -> None:
+    """Old UI context cannot authorize a launch after a same-revision profile switch."""
+    peer = ProviderStub()
+    peer.devices[0]["profile_id"] = expected_profile
+    with _provider_client(tmp_path, fake_remote, [peer]) as client:
+        device_id = _register(client)
+        _refresh(client)
+        accepted = _command(client, device_id, "launch", item_id="app-family", profile_id=expected_profile, profile_revision="family-1")
+        assert accepted.status_code in (200, 202)
+        assert "profile_id" not in peer.commands[-1][1]
+        before = len(peer.commands)
+        peer.devices[0]["profile_id"] = "another-profile"
+        # Revisions are opaque provider values; an ID switch must be checked independently.
+        _refresh(client)
+        rejected = _command(client, device_id, "launch", item_id="app-family", profile_id=expected_profile, profile_revision="family-1")
+        assert rejected.status_code in (400, 409)
+        assert rejected.json()["error"]["code"] == "invalid_request"
+        assert len(peer.commands) == before
+
+
+@pytest.mark.parametrize("state", ["UNKNOWN", "IDLE"])
+def test_unknown_or_idle_provider_observation_is_not_usable_playback(
+    tmp_path: Path, fake_remote: Any, state: str
+) -> None:
+    """Fresh identity-only/idle reports do not suppress a separate usable media source."""
+    peer = ProviderStub()
+    assert peer.playbacks[TV_A] is not None
+    peer.playbacks[TV_A].update(player_state=state, title=None, actions=[])
+    with _provider_client(tmp_path, fake_remote, [peer]) as client:
+        device_id = _register(client)
+        _refresh(client)
+        response = client.get(f"/api/devices/{device_id}/playback")
+        assert response.status_code == 200
+        assert response.json() is None
