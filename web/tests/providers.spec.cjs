@@ -40,6 +40,230 @@ test('roomy desktop defaults to Playing with one persistent right-hand remote', 
   expect(data.commands).toEqual([]);
 });
 
+for (const stored of ['dpad', 'touch', 'text']) {
+  test(`desktop derives Playing from saved ${stored} without replacing the phone preference`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.addInitScript(({ key, stored }) => localStorage.setItem(key, stored), { key: `atvr.surface.${TV_A}`, stored });
+    const data = fixtures(); await install(page, data);
+    await page.goto(`/d/${TV_A}`);
+    await expect(destination(page, 'Playing')).toHaveAttribute('aria-selected', 'true');
+    await expect(destination(page, 'Controls')).toHaveCount(0);
+    await expect(page.getByRole('combobox', { name: 'Control mode', exact: true })).toHaveValue(stored);
+    expect(await page.evaluate((key) => localStorage.getItem(key), `atvr.surface.${TV_A}`)).toBe(stored);
+    if (stored === 'text') await expect(page.getByRole('complementary').getByRole('textbox', { name: 'Send text to the TV', exact: true })).toBeVisible();
+    else await expectUnclippedSurface(page, page.getByRole('complementary').locator('[data-remote-surface]'));
+    expect(data.keys).toEqual([]);
+  });
+}
+
+for (const fallback of ['cast', 'idle']) {
+  test(`desktop default Playing remains useful without a provider (${fallback})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const data = fixtures(); data.resources[TV_A].integration = integration(TV_A, false);
+    if (fallback === 'cast') data.devices[0].state.now_playing = {
+      title: 'Desktop Cast feature', subtitle: 'Cast subtitle', album: null, season: null, episode: null,
+      content_type: 'video/mp4', player_state: 'PLAYING', position: 12, duration: 600,
+      position_at: new Date().toISOString(), images: [], can_pause: true, can_seek: false,
+    };
+    await install(page, data); await page.goto(`/d/${TV_A}`);
+    await expect(destination(page, 'Playing')).toHaveAttribute('aria-selected', 'true');
+    await expect(destination(page, 'Controls')).toHaveCount(0);
+    const playing = page.getByRole('main').getByRole('region', { name: 'Now playing', exact: true });
+    await expect(playing).toBeVisible();
+    if (fallback === 'cast') await expect(playing.getByText('Desktop Cast feature', { exact: true })).toBeVisible();
+    else expect((await playing.innerText()).trim().length).toBeGreaterThan(10);
+    await expect(page.getByRole('complementary').locator('[data-remote-surface]')).toHaveCount(1);
+  });
+}
+
+test('desktop sidebar stays mounted and stable while Apps Guide and Playing change', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const data = fixtures(); await install(page, data); await page.goto(`/d/${TV_A}`);
+  const sidebar = page.getByRole('complementary');
+  const input = sidebar.locator('[data-remote-surface]');
+  await expect(input).toHaveCount(1);
+  await input.evaluate((element) => { element.dataset.desktopPersistence = 'kept'; });
+  const before = await input.boundingBox();
+  for (const name of ['Apps', 'Guide', 'Playing']) {
+    await expect(destination(page, name)).toBeVisible({ timeout: 10000 });
+    await destination(page, name).click();
+    await expect(destination(page, name)).toHaveAttribute('aria-selected', 'true');
+    await frames(page);
+    await expect(input).toHaveAttribute('data-desktop-persistence', 'kept');
+    await expect(page.getByRole('main').locator('[data-remote-surface]')).toHaveCount(0);
+    const after = await input.boundingBox();
+    for (const dimension of ['x', 'y', 'width', 'height']) expect(Math.abs(after[dimension] - before[dimension])).toBeLessThanOrEqual(.25);
+    await expectUnclippedSurface(page, input);
+    await expectCoreKeysInViewport(page);
+  }
+  expect(data.keys).toEqual([]); expect(data.commands).toEqual([]);
+});
+
+test('desktop input-mode changes preserve the selected content and sidebar text draft', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const data = fixtures(); await install(page, data); await page.goto(`/d/${TV_A}`);
+  for (const name of ['Apps', 'Guide', 'Playing']) {
+    await expect(destination(page, name)).toBeVisible({ timeout: 10000 });
+    await destination(page, name).click();
+    for (const mode of ['touch', 'dpad', 'text']) {
+      await chooseMode(page, mode);
+      await expect(destination(page, name)).toHaveAttribute('aria-selected', 'true');
+      if (mode === 'text') await expect(page.getByRole('complementary').getByRole('textbox', { name: 'Send text to the TV', exact: true })).toBeVisible();
+      else await expectUnclippedSurface(page, page.getByRole('complementary').locator('[data-remote-surface]'));
+    }
+  }
+  const draft = page.getByRole('complementary').getByRole('textbox', { name: 'Send text to the TV', exact: true });
+  await draft.fill('Keep this desktop draft');
+  await draft.evaluate((element) => { element.dataset.desktopDraft = 'kept'; });
+  for (const name of ['Apps', 'Guide', 'Playing']) {
+    await destination(page, name).click();
+    await expect(draft).toHaveValue('Keep this desktop draft');
+    await expect(draft).toHaveAttribute('data-desktop-draft', 'kept');
+  }
+  expect(data.keys).toEqual([]); expect(data.commands).toEqual([]);
+});
+
+test('desktop sidebar gestures text and keys remain scoped to the selected TV', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const data = fixtures(); const textRequests = [];
+  await install(page, data, async (route, url) => {
+    if (!url.pathname.endsWith('/text')) return false;
+    textRequests.push({ path: url.pathname, body: route.request().postDataJSON() });
+    await route.fulfill({ status: 202, contentType: 'application/json', body: '{}' }); return true;
+  });
+  await page.goto(`/d/${TV_A}`);
+  await expect(page.getByRole('complementary').locator('[data-remote-surface]')).toHaveCount(1);
+  await touchGesture(page, page.getByRole('complementary').locator('[data-remote-surface]'), 'dpad', true);
+  await expect.poll(() => data.keys.some((key) => key.device_id === TV_A && key.key === 'DPAD_UP')).toBe(true);
+  await selectTv(page, 'Living Room TV', 'Bedroom TV');
+  await expect(page).toHaveURL(new RegExp(`/d/${TV_B}$`));
+  await chooseMode(page, 'touch');
+  const firstBedroomKey = data.keys.length;
+  await touchGesture(page, page.getByRole('complementary').locator('[data-remote-surface]'), 'touch');
+  await expect.poll(() => data.keys.slice(firstBedroomKey).some((key) => key.device_id === TV_B && key.key === 'DPAD_UP')).toBe(true);
+  expect(data.keys.slice(firstBedroomKey).every((key) => key.device_id === TV_B)).toBe(true);
+  await chooseMode(page, 'text');
+  await page.getByRole('complementary').getByRole('textbox', { name: 'Send text to the TV', exact: true }).fill('Bedroom search');
+  await page.getByRole('complementary').getByRole('button', { name: 'Send', exact: true }).click();
+  await expect.poll(() => textRequests.length).toBe(1);
+  expect(textRequests[0]).toEqual({ path: `/api/devices/${TV_B}/text`, body: { text: 'Bedroom search' } });
+});
+
+test('desktop keyboard drives the TV while browsing but leaves fields dialogs and guide panning alone', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const data = fixtures(); await install(page, data); await page.goto(`/d/${TV_A}`);
+  for (const name of ['Playing', 'Apps', 'Guide']) {
+    await expect(destination(page, name)).toBeVisible({ timeout: 10000 });
+    await destination(page, name).click();
+    await page.evaluate(() => document.activeElement?.blur());
+    const count = data.keys.length;
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(() => data.keys.length).toBe(count + 1);
+    expect(data.keys.at(-1)).toMatchObject({ device_id: TV_A, key: 'DPAD_DOWN' });
+  }
+  const timeline = page.getByRole('region', { name: 'Guide timeline', exact: true });
+  await expect(timeline).toBeVisible(); await timeline.focus();
+  const count = data.keys.length;
+  await page.keyboard.press('ArrowRight'); await frames(page);
+  expect(data.keys).toHaveLength(count);
+  await expect.poll(() => timeline.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  await timeline.evaluate((element) => { element.scrollLeft = 0; });
+  await page.getByRole('button', { name: /Family programme,/ }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('ArrowLeft'); expect(data.keys).toHaveLength(count);
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  await destination(page, 'Apps').click();
+  const search = page.getByRole('searchbox', { name: /search/i }).or(page.getByRole('textbox', { name: /search/i })); await expect(search).toBeVisible();
+  await search.fill('desktop typing'); await search.press('ArrowLeft');
+  expect(data.keys).toHaveLength(count);
+  await chooseMode(page, 'text');
+  const text = page.getByRole('complementary').getByRole('textbox', { name: 'Send text to the TV', exact: true });
+  await text.fill('Unsent draft'); await text.press('ArrowRight');
+  expect(data.keys).toHaveLength(count);
+});
+
+test('desktop-to-phone resizing restores the mobile surface without persisting automatic Playing', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const data = fixtures(); await install(page, data); await page.goto(`/d/${TV_A}`);
+  await chooseMode(page, 'touch');
+  expect(await page.evaluate((key) => localStorage.getItem(key), `atvr.surface.${TV_A}`)).toBe('touch');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(destination(page, 'Controls')).toHaveCount(0);
+  await expect(destination(page, 'Playing')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('combobox', { name: 'Control mode', exact: true })).toHaveValue('touch');
+  expect(await page.evaluate((key) => localStorage.getItem(key), `atvr.surface.${TV_A}`)).toBe('touch');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(destination(page, 'Controls')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('combobox', { name: 'Control mode', exact: true })).toHaveValue('touch');
+  await expectUnclippedSurface(page, page.locator('[data-remote-surface]').first());
+  await expectCoreKeysInViewport(page);
+  expect(data.keys).toEqual([]); expect(data.commands).toEqual([]);
+});
+
+test('desktop sidebar remains reachable with enlarged text and an update waiting', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await installPwaRegistration(page, { waiting: true });
+  const data = fixtures(); await install(page, data); await page.goto(`/d/${TV_A}`);
+  await page.addStyleTag({ content: ':root {font-size:24px !important}' });
+  const sidebar = page.getByRole('complementary');
+  const input = sidebar.locator('[data-remote-surface]');
+  await expect(input).toHaveCount(1); await input.scrollIntoViewIfNeeded();
+  const rect = await input.boundingBox(); expect(rect.width).toBeGreaterThanOrEqual(120); expect(rect.height).toBeGreaterThanOrEqual(120);
+  await expect(input).toBeInViewport({ ratio: 1 });
+  for (const name of ['Home', 'Play or pause', 'Volume up']) {
+    const key = sidebar.getByRole('button', { name, exact: true });
+    await key.scrollIntoViewIfNeeded(); await expect(key).toBeInViewport({ ratio: 1 });
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
+});
+
+for (const [stored, selected] of [['apps', 'Apps'], ['guide', 'Guide']]) {
+  test(`desktop preserves an explicit saved ${selected} destination`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.addInitScript(({ key, stored }) => localStorage.setItem(key, stored), { key: `atvr.surface.${TV_A}`, stored });
+    const data = fixtures(); await install(page, data); await page.goto(`/d/${TV_A}`);
+    await expect(destination(page, selected)).toHaveAttribute('aria-selected', 'true');
+    await expect(destination(page, 'Controls')).toHaveCount(0);
+    await expect(page.getByRole('complementary').locator('[data-remote-surface]')).toHaveCount(1);
+    expect(await page.evaluate((key) => localStorage.getItem(key), `atvr.surface.${TV_A}`)).toBe(stored);
+  });
+}
+
+test('desktop unpaired television retains its repair prompt and disabled core controls', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const data = fixtures(); data.devices[0].paired = false; data.devices[0].state.connection = 'unpaired';
+  data.resources[TV_A].integration = integration(TV_A, false);
+  await install(page, data); await page.goto(`/d/${TV_A}`);
+  await expect(destination(page, 'Controls')).toHaveCount(0);
+  await expect(page.getByRole('main').getByRole('button', { name: 'Pair this television', exact: true })).toBeVisible();
+  await expect(page.getByRole('complementary').getByRole('button', { name: 'Home', exact: true })).toBeDisabled();
+  await expect(page.getByRole('complementary').getByRole('button', { name: 'Power off', exact: true })).toBeDisabled();
+  expect(data.keys).toEqual([]); expect(data.commands).toEqual([]);
+});
+
+for (const viewport of [
+  { width: 1024, height: 600, desktop: true },
+  { width: 1023, height: 768, desktop: false },
+  { width: 1440, height: 599, desktop: false },
+]) {
+  test(`desktop layout boundary preserves usable controls at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    const data = fixtures(); await install(page, data); await page.goto(`/d/${TV_A}`);
+    await expect(page.getByRole('combobox', { name: 'Control mode', exact: true })).toBeVisible();
+    if (viewport.desktop) {
+      await expect(destination(page, 'Controls')).toHaveCount(0);
+      await expect(destination(page, 'Playing')).toHaveAttribute('aria-selected', 'true');
+      await expectUnclippedSurface(page, page.getByRole('complementary').locator('[data-remote-surface]'));
+    } else {
+      await expect(destination(page, 'Controls')).toHaveAttribute('aria-selected', 'true');
+      await expectUnclippedSurface(page, page.getByRole('main').locator('[data-remote-surface]'));
+    }
+    await expectCoreKeysInViewport(page);
+    expect(data.keys).toEqual([]);
+  });
+}
+
 /** Inspect the real painted rectangle against every ancestor that clips overflow. */
 async function expectUnclippedSurface(page, surface, visibleHeight) {
   const geometry = await surface.evaluate((element, visibleHeight) => {
@@ -523,7 +747,9 @@ for (const viewport of [{ width: 360, height: 640 }, { width: 390, height: 844 }
     await expect(nav).toBeVisible();
     const mode = page.getByRole('combobox', { name: 'Control mode', exact: true });
     await expect.soft(mode).toHaveCount(1);
-    for (const selected of ['Controls', 'Apps', 'Guide', 'Playing']) {
+    const destinations = viewport.width >= 1024 && viewport.height >= 600 ? ['Apps', 'Guide', 'Playing'] : ['Controls', 'Apps', 'Guide', 'Playing'];
+    if (destinations.length === 3) await expect(destination(page, 'Controls')).toHaveCount(0);
+    for (const selected of destinations) {
       await destination(page, selected).click();
       await expect(destination(page, selected)).toHaveAttribute('aria-selected', 'true');
       // Labels stay mounted while spring widths animate. Assess the settled visual
@@ -532,7 +758,7 @@ for (const viewport of [{ width: 360, height: 640 }, { width: 390, height: 844 }
         const text = [...element.querySelectorAll('span')].find((node) => node.textContent === element.getAttribute('aria-label'));
         return text ? text.getBoundingClientRect().width : 0;
       })).toBeGreaterThan(10);
-      for (const label of ['Controls', 'Apps', 'Guide', 'Playing']) {
+      for (const label of destinations) {
         await expect.poll(() => destination(page, label).evaluate((element, name) => {
           const nodes = [...element.querySelectorAll('span')].filter((node) => node.textContent === name);
           return nodes.some((node) => {
