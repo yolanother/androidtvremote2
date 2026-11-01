@@ -1278,3 +1278,45 @@ test('installed app rechecks updates on resume without event storms or unhandled
   expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
   expect(errors).toEqual([]);
 });
+
+test('remote remains responsive to orientation changes without the visual viewport API', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, 'visualViewport', { configurable: true, value: undefined }));
+  const data = fixtures(); await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  for (const viewport of [{ width: 360, height: 560 }, { width: 844, height: 390 }]) {
+    await page.setViewportSize(viewport);
+    for (const mode of ['dpad', 'touch']) {
+      await chooseMode(page, mode);
+      await expectUnclippedSurface(page, page.locator('[data-remote-surface]').first());
+      await expectCoreKeysInViewport(page);
+    }
+  }
+});
+
+test('arrival of an update preserves an active held key and unsent text', async ({ page }) => {
+  await installPwaRegistration(page);
+  const data = fixtures(); await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await chooseMode(page, 'dpad');
+  const up = await page.getByRole('button', { name: 'Up', exact: true }).boundingBox();
+  await page.mouse.move(up.x + up.width / 2, up.y + up.height * .12);
+  await page.mouse.down();
+  await expect.poll(() => data.keys.filter((key) => key.key === 'DPAD_UP').length).toBeGreaterThanOrEqual(1);
+  await page.evaluate(() => window.__pwaFixture.notify());
+  await expect(page.getByRole('button', { name: 'Reload', exact: true })).toBeVisible();
+  await page.waitForTimeout(650);
+  const repeating = data.keys.filter((key) => key.key === 'DPAD_UP').length;
+  expect(repeating).toBeGreaterThan(1);
+  expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  expect(data.keys.filter((key) => key.key === 'DPAD_UP')).toHaveLength(repeating);
+  await page.getByRole('button', { name: 'Dismiss the update notice', exact: true }).click();
+  await chooseMode(page, 'text');
+  const text = page.getByRole('textbox', { name: 'Send text to the TV', exact: true });
+  await text.fill('Keep this unsent title');
+  await page.evaluate(() => window.__pwaFixture.notify());
+  await expect(text).toHaveValue('Keep this unsent title');
+  expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
+  expect(data.keys.every((key) => key.device_id === TV_A)).toBe(true);
+});
