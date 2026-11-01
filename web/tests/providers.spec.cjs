@@ -1256,6 +1256,14 @@ test('installed app rechecks updates on resume without event storms or unhandled
   expect(await checks()).toBe(beforeFocus + 1);
   await page.clock.fastForward(61000);
   await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('focus'));
+  });
+  await frames(page);
+  expect(await checks()).toBe(beforeFocus + 1);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
     window.__pwaFixture.holdNext = true;
     document.dispatchEvent(new Event('visibilitychange'));
   });
@@ -1270,6 +1278,13 @@ test('installed app rechecks updates on resume without event storms or unhandled
   await frames(page);
   expect(errors).toEqual([]);
   await page.clock.fastForward(61000);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    window.dispatchEvent(new Event('focus'));
+  });
+  await frames(page);
+  expect(await checks()).toBe(beforeFocus + 3);
+  await page.evaluate(() => Object.defineProperty(navigator, 'onLine', { configurable: true, value: true }));
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect.poll(checks).toBe(beforeFocus + 4);
   const beforeHourly = await checks();
