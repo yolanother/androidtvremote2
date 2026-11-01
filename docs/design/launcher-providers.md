@@ -93,28 +93,41 @@ origins/credentials explicitly; signed plugin packages are outside this version.
 
 ## Per-TV identity and capabilities
 
-The remote's existing MAC-derived `device_id` remains canonical. The external
-launcher generates a persistent installation UUID and reports it to its provider
-alongside current network identity, installed apps, active profile, timezone,
-launcher version and supported actions. It uses an outbound connection so TVs
-do not require an inbound control server.
+The remote's existing MAC-derived `device_id` remains canonical in the launcher
+and provider as well. Its precise source is the Android TV Remote Service's TLS
+certificate, not a Wi-Fi API or an IP-derived identifier. The existing library's
+`async_get_name_and_mac()` connects to pairing port 6467, reads the server
+certificate and takes the last slash-delimited component of its subject common
+name. `DeviceManager.add_device()` lowercases that value and removes colons:
+`AA:BB:CC:DD:EE:FF` becomes `aabbccddeeff`.
 
-For first association, use a provider-reported stable hardware identifier when
-available. Otherwise require exactly one live launcher registration whose
-observed LAN address matches the current address of a paired TV, and persist the
-association between that launcher's UUID and the remote's canonical ID. Friendly
-names alone never establish an association. A reverse proxy's address is not a
-TV address: the adapter must obtain the launcher address at the trusted LAN
-ingress rather than trusting arbitrary forwarded headers or payload addresses.
+On launcher registration, the provider backend performs the same certificate
+lookup against that TV and returns the canonical ID to the launcher. This shares
+the remote's identity method without depending on Android's restricted local
+hardware-MAC APIs. The launcher publishes installed apps, active profile,
+timezone, launcher version, capabilities and subsequent watching updates under
+that ID through the provider's home API. It uses an outbound connection so TVs
+do not require an inbound control server. An optional installation UUID tracks
+reinstalls and connection epochs; it is not a competing TV identity.
 
-After association, UUID identifies the launcher and the remote ID identifies
-the TV. DHCP changes update addresses, not associations. Conflicting identities,
-reinstallation, duplicate registrations and ambiguous address matches stop
-automatic control for that association; expose an explicit TV mapping in
-Settings instead of selecting an arbitrary device. Recheck pairing, enabled
-state and association before every command. Unpairing immediately disables
-provider control. An unpaired TV may be visible in discovery but cannot receive
-provider commands.
+The adapter obtains the TV address at trusted LAN ingress, then verifies the
+certificate-derived ID against the paired remote inventory. A reverse proxy's
+address is not a TV address; arbitrary forwarded headers or launcher-supplied
+addresses are not sufficient evidence. If ingress cannot identify the TV address,
+or the certificate lookup fails, leave registration unresolved and expose an
+explicit TV mapping instead of inferring identity from a friendly name. A
+launcher-local lookup of the same service can be a fallback only after verifying
+reachability and equivalent certificate results on the target TVs.
+
+Validate the certificate identity's MAC format and reject empty, placeholder or
+conflicting IDs. DHCP changes update addresses, not identity. Reinstallation
+retains the same TV identity when its Remote Service certificate identity is
+unchanged. A factory reset or Remote Service identity change requires a fresh
+association and pairing as appropriate; do not silently migrate another TV's
+state. The certificate name is an identity source, not provider authentication.
+Recheck pairing, enabled state and association before every command. Unpairing
+immediately disables provider control. An unpaired TV may be visible in discovery
+but cannot receive provider commands.
 
 Capabilities are per TV, not merely per provider: installed apps, services,
 search, continue watching, title details, guide, tune, channel step, live playback
@@ -180,6 +193,16 @@ command channel. Launcher-native actions use a small fixed command allowlist;
 providers cannot request arbitrary shell commands or arbitrary network fetches.
 
 ## Playback and channel surfing
+
+The launcher publishes currently watching observations through the home API,
+keyed by the shared canonical TV ID. Send updates on session/title changes,
+play/pause/seek/stop and profile changes, with a heartbeat while active. Include
+session ID, observation time and sequence, package, profile, optional title and
+channel IDs, metadata, position/duration and supported actions. The provider
+retains each TV's latest observed state and pushes changes to the remote's generic
+provider client, which fans them out on `/api/ws`. Stop clears the active session;
+heartbeat expiry marks it unknown/stale. Keep resume history in its existing
+history API, separate from this device-scoped live state.
 
 Playback includes source, foreground package, session ID, title/artwork, state,
 position/duration, observation timestamp, optional channel ID and supported
@@ -268,10 +291,13 @@ its last update, but cannot execute an obsolete action.
 1. Public protocol/models, fixture provider, registry/discovery and device
    association. Verify zero-provider startup, automatic sole matches, ambiguous
    matches, DHCP change, duplicate providers, auth, version rejection and shutdown.
+   Verify identical certificate parsing/normalization in the remote and provider,
+   including supported certificate subject layouts and invalid/placeholder IDs.
 2. External launcher registration, per-TV inventory/profile and outbound command
    connection; adapter manifest/discovery. Verify two simultaneous TVs with
-   different apps/profiles and loss/reconnect. Do not use household-global data
-   as a per-device fallback.
+   different apps/profiles and loss/reconnect. Register using the shared
+   certificate-derived TV ID and publish device-scoped watching observations
+   through the home API. Do not use household-global data as a per-device fallback.
 3. Shared authoritative schedule, title/service browsing, tune/channel step and
    source-aware observed playback. Verify launcher/remote agreement, timezone and
    midnight/DST cases, resume/open semantics, command deduplication, stale sessions,
