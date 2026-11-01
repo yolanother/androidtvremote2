@@ -624,7 +624,13 @@ for (const selected of ['Apps', 'Guide']) {
     await page.mouse.wheel(0, 550);
     await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
     const after = await Promise.all(fixed.map((item) => item.boundingBox()));
-    for (let i = 0; i < before.length; i++) expect(after[i]).toEqual(before[i]);
+    // Chromium rounds spring-driven widths to 1/64 CSS pixel. Ignore subpixel
+    // settling while still rejecting visible movement of the fixed remote chrome.
+    for (let i = 0; i < before.length; i++) {
+      for (const dimension of ['x', 'y', 'width', 'height']) {
+        expect(Math.abs(after[i][dimension] - before[i][dimension]), `Fixed chrome ${i} ${dimension}`).toBeLessThanOrEqual(.25);
+      }
+    }
     expect(await page.evaluate(() => [scrollX, scrollY])).toEqual([0, 0]);
     await expectCoreKeysInViewport(page);
   });
