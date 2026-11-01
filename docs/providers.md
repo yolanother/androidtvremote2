@@ -34,7 +34,8 @@ Without usage metadata the shortlist is labelled available apps, rather than cla
 to know which apps are frequently used. Profile photos fall back to colored initials.
 
 The guide uses a compact time grid on phones and larger screens. The service rail and
-time ruler stay visible within its contained scrolling area; artwork, service colors,
+time ruler stay visible within its contained scrolling area, starting at the current
+half-hour so the current title stays readable near the end of an hour. Artwork, service colors,
 the now marker and programme progress aid scanning. Selecting a programme opens details
 without controlling playback. Tune remains an explicit action for its channel's current
 available title; future programme details only offer the provider's title actions.

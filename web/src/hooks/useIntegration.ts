@@ -5,7 +5,8 @@
  * Selected-TV provider state and action hook for the remote UI. Loads only advertised
  * resources, reacts to the appliance's existing WebSocket invalidations, aborts stale
  * requests on TV/profile changes and prevents late data or acknowledgements from being
- * applied to another television. Provider state remains independent from Cast.
+ * applied to another television. Guide requests align to the displayed current
+ * half-hour and cover its six-hour timeline. Provider state remains independent from Cast.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -137,7 +138,7 @@ export function useIntegration(device: Device | undefined, surface: Surface): Re
     if (advertised.has('profiles')) load('profiles', providerApi.profiles(deviceId, controller.signal))
     if (surface === 'apps' && advertised.has('catalog')) load('catalog', providerApi.catalog(deviceId, controller.signal))
     if (surface === 'guide' && advertised.has('guide')) {
-      const from = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000)
+      const from = new Date(Math.floor(Date.now() / 1_800_000) * 1_800_000)
       load('guide', providerApi.guide(deviceId, from.toISOString(), new Date(from.getTime() + 6 * 3_600_000).toISOString(), controller.signal))
     }
     if (!left) setLoading(false)

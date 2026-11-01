@@ -4,6 +4,7 @@
  *
  * Compact selected-TV programme grid for every screen size. Keeps service identities
  * and time labels visible while browsing artwork-rich authoritative UTC intervals,
+ * anchored to the current half-hour so the current title remains readable on phones,
  * then opens details before explicit TV actions. Recommendation channels resume/open
  * their current title and never imply a live-time seek.
  */
@@ -67,7 +68,7 @@ export function Guide({ deviceId, deviceName, remote }: { deviceId: string; devi
   const serverNow = now + (Number.isFinite(offset) ? offset : 0)
   const tune = (channel: GuideChannel) => void remote.send({ action: 'tune', channel_id: channel.id, schedule_revision: guide?.revision })
   const hasChannels = !!guide?.channels.length
-  const start = Math.floor(serverNow / 3_600_000) * 3_600_000
+  const start = Math.floor(serverNow / 1_800_000) * 1_800_000
   const end = start + 6 * 3_600_000
   const timeRange = end - start
   const gridWidth = 1200
