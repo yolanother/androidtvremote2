@@ -139,12 +139,16 @@ class ProviderRegistry:
             self._client = None
 
     async def refresh(self) -> None:
-        """Fetch current manifest/device snapshots and publish changed integration state."""
+        """Refresh metadata and invalidate bound resources, including expired playback.
+
+        HTTP-only providers may change catalog/playback without changing their device
+        inventory. A small device-scoped invalidation also makes that fallback reactive.
+        """
         if self._client is None:
             return
         async with self._refresh_lock:
             await asyncio.gather(*(self._refresh_endpoint(e) for e in list(self._endpoints.values())))
-            self._publish_all()
+            self._publish_all(force_available=True)
 
     def list_providers(self) -> list[ProviderStatus]:
         """Return discovered provider health without URLs or credentials."""
@@ -223,7 +227,7 @@ class ProviderRegistry:
         raw = await self._request(endpoint, path, params=params)
         # An association/profile can change while awaiting upstream I/O.
         current_endpoint, current = self._owner(device_id)
-        if current_endpoint is not endpoint or current.profile_revision != reported.profile_revision:
+        if current_endpoint is not endpoint or self._profile(current) != self._profile(reported):
             raise InvalidRequest("TV profile changed while loading provider data", status=409)
         if resource == "playback" and raw is None:
             return None
@@ -262,7 +266,7 @@ class ProviderRegistry:
             body = command.model_dump(mode="json", exclude_none=True)
             body["profile_revision"] = reported.profile_revision
             assert endpoint.manifest is not None
-            fingerprint = json.dumps([endpoint.manifest.id, body], sort_keys=True)
+            fingerprint = json.dumps([endpoint.manifest.id, reported.profile_id, body], sort_keys=True)
             key = (device_id, str(command.command_id))
             cached = self._commands.get(key)
             if cached is not None:
@@ -294,7 +298,7 @@ class ProviderRegistry:
                     raise InvalidRequest("Profile is unavailable on this TV")
             # Recheck immediately before forwarding; a concurrent unpair must take effect.
             current_endpoint, current = self._owner(device_id, command=True)
-            if current_endpoint is not endpoint or current.profile_revision != reported.profile_revision:
+            if current_endpoint is not endpoint or self._profile(current) != self._profile(reported):
                 raise InvalidRequest("Provider association or profile changed", status=409)
             raw = await self._request(endpoint, f"devices/{segment(device_id)}/commands", body=body)
             try:
@@ -306,6 +310,15 @@ class ProviderRegistry:
             self._commands[key] = (fingerprint, result)
             if len(self._commands) > MAX_COMMAND_CACHE:
                 self._commands.popitem(last=False)
+            # Keep the acknowledgement under its original deduplication context,
+            # even if the TV switched profiles while POST was in flight. Never
+            # present it as an accepted action for the new profile, or resend its
+            # UUID there when both profiles happen to use the same revision value.
+            current_endpoint, current = self._owner(device_id, command=True)
+            changed_profile = self._profile(current) != self._profile(reported)
+            expected_switch = action == "set_profile" and current.profile_id == command.item_id
+            if current_endpoint is not endpoint or (changed_profile and not expected_switch):
+                raise InvalidRequest("TV profile changed while executing provider command", status=409)
             return result
 
     def _spawn(self, coroutine: Any) -> None:
@@ -391,6 +404,11 @@ class ProviderRegistry:
         return self._candidates(device_id)[0]
 
     @staticmethod
+    def _profile(device: ProviderDevice) -> tuple[str | None, str]:
+        """Identify profile context by identity and revision; revisions aren't globally unique."""
+        return device.profile_id, device.profile_revision
+
+    @staticmethod
     def _require_capability(device: ProviderDevice, capability: str) -> None:
         """Refuse operations the selected TV did not advertise."""
         if capability not in device.capabilities:
@@ -423,7 +441,7 @@ class ProviderRegistry:
             error=endpoint.error, last_seen=endpoint.last_seen,
         )
 
-    def _publish_all(self, *, force_device: str | None = None) -> None:
+    def _publish_all(self, *, force_device: str | None = None, force_available: bool = False) -> None:
         """Publish only changed metadata, with forced invalidation for provider events."""
         for endpoint in self._endpoints.values():
             status = self._status(endpoint)
@@ -435,7 +453,10 @@ class ProviderRegistry:
         for device in self.devices.list_devices():
             integration = self.integration(device.id)
             previous = self._integrations.get(device.id)
-            if (self._endpoints or (previous is not None and previous.available)) and (previous != integration or force_device == device.id):
+            changed = previous != integration or force_device == device.id
+            if force_available and integration.available:
+                changed = True
+            if (self._endpoints or (previous is not None and previous.available)) and changed:
                 self.devices.event_bus.publish({
                     "type": "integration.updated", "device_id": device.id,
                     "integration": integration.model_dump(mode="json"),

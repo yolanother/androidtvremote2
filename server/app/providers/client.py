@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
@@ -57,12 +58,13 @@ def segment(value: str) -> str:
 class ProviderClient:
     """Reusable HTTP client with a finite timeout and no appliance credentials.
 
-    :param timeout: Per-request timeout in seconds.
+    :param timeout: Total request/body deadline in seconds, also used for HTTP inactivity.
     :param transport: Optional in-process transport for integration tests.
     """
 
     def __init__(self, timeout: float, transport: httpx.AsyncBaseTransport | None = None) -> None:
         """Create the client without performing network I/O."""
+        self._timeout = timeout
         self.http = httpx.AsyncClient(
             timeout=timeout, transport=transport, follow_redirects=False, trust_env=False,
         )
@@ -82,24 +84,29 @@ class ProviderClient:
         :param body: Optional JSON body; selects POST rather than GET.
         :param params: Escaped query parameters.
         :returns: Parsed JSON data, awaiting schema validation by the registry.
-        :raises ProviderUnavailable: For connection, redirect, size or JSON failures.
+        :raises ProviderUnavailable: For deadline, connection, redirect, size or JSON failures.
         """
         if path.startswith(("/", ".")) or "://" in path or "?" in path or "#" in path:
             raise ProviderUnavailable("Invalid provider endpoint")
         try:
-            async with self.http.stream(
-                "POST" if body is not None else "GET", f"{base}/{path}",
-                json=body, params=params,
-            ) as response:
-                if response.status_code < 200 or response.status_code >= 300:
-                    raise ProviderUnavailable(f"Provider returned HTTP {response.status_code}")
-                content = bytearray()
-                async for chunk in response.aiter_bytes():
-                    content.extend(chunk)
-                    if len(content) > MAX_RESPONSE_BYTES:
-                        raise ProviderUnavailable("Provider response exceeded 2 MiB")
-                return json.loads(content)
+            # httpx's read timeout is an inactivity timeout. A slow peer sending
+            # frequent tiny chunks could otherwise keep this request alive forever.
+            async with asyncio.timeout(self._timeout):
+                async with self.http.stream(
+                    "POST" if body is not None else "GET", f"{base}/{path}",
+                    json=body, params=params,
+                ) as response:
+                    if response.status_code < 200 or response.status_code >= 300:
+                        raise ProviderUnavailable(f"Provider returned HTTP {response.status_code}")
+                    content = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        content.extend(chunk)
+                        if len(content) > MAX_RESPONSE_BYTES:
+                            raise ProviderUnavailable("Provider response exceeded 2 MiB")
+                    return json.loads(content)
         except ProviderUnavailable:
             raise
+        except TimeoutError as exc:
+            raise ProviderUnavailable("Provider exceeded the total request deadline") from exc
         except (httpx.HTTPError, ValueError, UnicodeError) as exc:
             raise ProviderUnavailable("Provider did not return a valid bounded JSON response") from exc
