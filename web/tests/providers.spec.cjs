@@ -1335,3 +1335,44 @@ test('arrival of an update preserves an active held key and unsent text', async 
   expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
   expect(data.keys.every((key) => key.device_id === TV_A)).toBe(true);
 });
+
+for (const height of [480, 560]) {
+  for (const mode of ['dpad', 'touch']) {
+    test(`large-text waiting update retains a usable ${mode} at 360x${height}`, async ({ page }) => {
+      await page.setViewportSize({ width: 360, height });
+      await installPwaRegistration(page);
+      const data = fixtures(); await install(page, data);
+      await page.goto(`/d/${TV_A}`);
+      await chooseMode(page, mode);
+      await page.addStyleTag({ content: ':root { font-size: 24px !important; }' });
+      await page.evaluate(() => window.__pwaFixture.notify());
+      const reload = page.getByRole('button', { name: 'Reload', exact: true });
+      const dismiss = page.getByRole('button', { name: 'Dismiss the update notice', exact: true });
+      await expect(reload).toBeVisible();
+      await frames(page);
+      const surface = page.locator('[data-remote-surface]').first();
+      await expectUnclippedSurface(page, surface);
+      await expectCoreKeysInViewport(page);
+      for (const button of [reload, dismiss]) {
+        const box = await button.boundingBox();
+        expect.soft(box.width).toBeGreaterThanOrEqual(44);
+        expect.soft(box.height).toBeGreaterThanOrEqual(44);
+        await expect.soft(button).toBeInViewport({ ratio: 1 });
+      }
+      const before = await page.getByRole('main').boundingBox();
+      expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
+      expect(data.commands).toEqual([]);
+      expect(data.keys).toEqual([]);
+      await dismiss.click();
+      await expect(reload).toHaveCount(0);
+      await frames(page);
+      const after = await page.getByRole('main').boundingBox();
+      expect(after.height).toBeGreaterThan(before.height + 10);
+      await expectUnclippedSurface(page, surface);
+      await expectCoreKeysInViewport(page);
+      expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
+      expect(data.commands).toEqual([]);
+      expect(data.keys).toEqual([]);
+    });
+  }
+}
