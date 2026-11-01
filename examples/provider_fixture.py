@@ -19,7 +19,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 
-def create_fixture_app(device_id: str = "aabbccddeeff") -> FastAPI:
+def create_fixture_app(device_id: str = "aabbccddeeff") -> FastAPI:  # noqa: C901 - routes share isolated fixture state.
     """Build an isolated simulated provider without opening sockets or contacting TVs.
 
     :param device_id: Canonical TV identity to advertise for local fixture testing.
@@ -170,13 +170,17 @@ def create_fixture_app(device_id: str = "aabbccddeeff") -> FastAPI:
                 raise HTTPException(409, "Playback session changed")
             if action == "seek":
                 position = body.get("position")
-                if isinstance(position, bool) or not isinstance(position, (int, float)) or not math.isfinite(position) or not 0 <= position <= current["duration"]:
+                if (
+                    isinstance(position, bool) or not isinstance(position, (int, float))
+                    or not math.isfinite(position) or not 0 <= position <= current["duration"]
+                ):
                     raise HTTPException(400, "Invalid seek position")
                 current["position"] = position
             elif action == "stop":
                 state["playback"] = None
             else:
-                current["player_state"] = "PAUSED" if action == "pause" or action == "play_pause" and current["player_state"] == "PLAYING" else "PLAYING"
+                pause = action == "pause" or action == "play_pause" and current["player_state"] == "PLAYING"
+                current["player_state"] = "PAUSED" if pause else "PLAYING"
             result = {"command_id": command_id, "status": "completed"}
         else:
             raise HTTPException(409, "Action or playback session is unavailable")

@@ -29,8 +29,20 @@ from ..errors import InvalidRequest, NotPaired, ProviderUnavailable
 from .client import MAX_RESPONSE_BYTES, ProviderClient, provider_url, segment
 from .discovery import ProviderDiscovery
 from .models import (
-    MEDIA_ACTIONS, Browse, Catalog, Command, CommandResult, Guide, Integration,
-    Manifest, Playback, Profiles, ProviderDevice, ProviderModel, ProviderStatus, Title,
+    MEDIA_ACTIONS,
+    Browse,
+    Catalog,
+    Command,
+    CommandResult,
+    Guide,
+    Integration,
+    Manifest,
+    Playback,
+    Profiles,
+    ProviderDevice,
+    ProviderModel,
+    ProviderStatus,
+    Title,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -422,8 +434,8 @@ class ProviderRegistry:
     def _guide_window(params: dict[str, str]) -> None:
         """Require an explicit timezone-aware increasing guide window of at most 24h."""
         try:
-            start = datetime.fromisoformat(params["from"].replace("Z", "+00:00"))
-            end = datetime.fromisoformat(params["to"].replace("Z", "+00:00"))
+            start = datetime.fromisoformat(params["from"])
+            end = datetime.fromisoformat(params["to"])
             if start.tzinfo is None or end.tzinfo is None or not timedelta(0) < end - start <= timedelta(days=1):
                 raise ValueError("invalid window")
         except (KeyError, ValueError) as exc:
@@ -521,6 +533,7 @@ class ProviderRegistry:
             except asyncio.CancelledError:
                 raise
             except Exception:
+                LOGGER.debug("Provider event transport failed", exc_info=True)
                 # Event transport is an enhancement over bounded HTTP snapshots; its
                 # loss must not disable a provider whose catalog/commands still work.
                 endpoint.error = "Live events unavailable; refreshing snapshots"

@@ -19,7 +19,6 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-
 ROOT = Path(__file__).resolve().parents[2]
 DEVICE_ID = "112233445566"
 BASE = f"/atvr/v1/devices/{DEVICE_ID}"
@@ -70,7 +69,7 @@ def test_example_resources_follow_wire_shapes_and_bound_guide_requests() -> None
         assert guide["channels"]
         programme = guide["channels"][0]["programmes"][0]
         assert programme["id"] and programme["title_id"] and programme["title"]
-        assert datetime.fromisoformat(programme["start"].replace("Z", "+00:00")) < datetime.fromisoformat(programme["end"].replace("Z", "+00:00"))
+        assert datetime.fromisoformat(programme["start"]) < datetime.fromisoformat(programme["end"])
         observed = client.get(f"{BASE}/playback")
         assert observed.status_code == 200
         assert observed.json()["session_id"] and observed.json()["observed_at"]

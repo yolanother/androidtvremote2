@@ -12,10 +12,11 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 from uuid import uuid4
 
 import httpx
@@ -24,7 +25,6 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
-
 
 TV_A = "aabbccddeeff"
 TV_B = "112233445566"
@@ -392,10 +392,10 @@ def test_guide_preserves_programme_intervals_and_tv_identity(tmp_path: Path, fak
         assert body["timezone"] == "America/Los_Angeles"
         programme = body["channels"][0]["programmes"][0]
         assert programme["title"] == f"A title for {device_id}"
-        assert datetime.fromisoformat(programme["start"].replace("Z", "+00:00")) == datetime.fromisoformat(GUIDE_FROM.replace("Z", "+00:00"))
-        assert datetime.fromisoformat(programme["end"].replace("Z", "+00:00")) == datetime.fromisoformat(GUIDE_TO.replace("Z", "+00:00"))
+        assert datetime.fromisoformat(programme["start"]) == datetime.fromisoformat(GUIDE_FROM)
+        assert datetime.fromisoformat(programme["end"]) == datetime.fromisoformat(GUIDE_TO)
         upstream = next(r for r in reversed(peer.requests) if r.url.path.endswith("/guide"))
-        assert datetime.fromisoformat(upstream.url.params["from"].replace("Z", "+00:00")) == datetime.fromisoformat(GUIDE_FROM.replace("Z", "+00:00"))
+        assert datetime.fromisoformat(upstream.url.params["from"]) == datetime.fromisoformat(GUIDE_FROM)
 
 
 @pytest.mark.parametrize("start,end", [
