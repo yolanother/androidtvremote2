@@ -9,7 +9,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -200,6 +202,7 @@ def _provider_client(
     fake_remote: Any,
     peers: list[ProviderStub] | None = None,
     token: str | None = None,
+    timeout: float = 5,
 ) -> Iterator[TestClient]:
     """Run the real appliance lifespan against only in-memory external peers.
 
@@ -207,6 +210,7 @@ def _provider_client(
     :param fake_remote: Existing TV protocol boundary double.
     :param peers: Provider peers, each given a distinct origin; defaults to one.
     :param token: Optional appliance token, which must never reach a peer.
+    :param timeout: Total upstream request budget in seconds.
     :returns: The running API client; all resources close when the context exits.
     """
     providers = peers if peers is not None else [ProviderStub()]
@@ -221,7 +225,7 @@ def _provider_client(
         data_dir=tmp_path / "data",
         discovery_enabled=False,
         provider_urls=",".join(f"http://{host}{BASE}" for host in origins),
-        provider_timeout=5,
+        provider_timeout=timeout,
         provider_poll_interval=15,
         remote_api_token=token,
         _env_file=None,
@@ -619,3 +623,125 @@ def test_provider_loss_publishes_device_scoped_changes_on_the_existing_bus(tmp_p
         assert any(e["device_id"] == device_id and e["integration"]["available"] is False for e in integration_events)
         assert any(e["provider"]["id"] == peer.provider_id for e in provider_events)
         assert client.get(f"/api/devices/{device_id}/state").json()["now_playing"] is None
+
+
+@pytest.mark.parametrize("change", ["title", "expiry"])
+def test_http_refresh_invalidates_playback_when_device_metadata_is_unchanged(
+    tmp_path: Path, fake_remote: Any, change: str
+) -> None:
+    """HTTP-only providers must refresh visible playing state even without profile changes."""
+    peer = ProviderStub()
+    with _provider_client(tmp_path, fake_remote, [peer]) as client:
+        device_id = _register(client)
+        _refresh(client)
+
+        async def refresh_changed_playback() -> list[dict[str, Any]]:
+            """Capture the normal fallback refresh's bounded event batch."""
+            with client.app.state.devices.event_bus.subscribe() as queue:
+                assert peer.playbacks[device_id] is not None
+                if change == "title":
+                    peer.playbacks[device_id]["title"] = "A newer observed title"
+                else:
+                    peer.playbacks[device_id]["observed_at"] = (datetime.now(UTC) - timedelta(seconds=31)).isoformat()
+                await client.app.state.providers.refresh()
+                events = []
+                while not queue.empty():
+                    events.append(queue.get_nowait())
+                return events
+
+        assert client.portal is not None
+        events = client.portal.call(refresh_changed_playback)
+        assert any(e and e.get("type") == "integration.updated" and e.get("device_id") == device_id for e in events)
+        playback = client.get(f"/api/devices/{device_id}/playback").json()
+        if change == "expiry":
+            assert playback is None
+        else:
+            assert playback["title"] == "A newer observed title"
+
+
+def test_request_deadline_includes_a_slow_drip_response_body(tmp_path: Path, fake_remote: Any) -> None:
+    """A peer sending frequent small chunks cannot stretch a total request budget."""
+
+    class SlowBody(httpx.AsyncByteStream):
+        """Yield a valid JSON catalog over several short waits, exceeding the full budget."""
+
+        def __init__(self, body: bytes) -> None:
+            self.body = body
+
+        async def __aiter__(self) -> Any:
+            size = (len(self.body) + 7) // 8
+            for offset in range(0, len(self.body), size):
+                await asyncio.sleep(0.015)
+                yield self.body[offset:offset + size]
+
+    class SlowCatalog(ProviderStub):
+        """Keep discovery prompt while delaying the body of one real data response."""
+
+        def respond(self, request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/catalog"):
+                self.requests.append(request)
+                return httpx.Response(200, headers={"Content-Type": "application/json"}, stream=SlowBody(json.dumps(self.catalogs[TV_A]).encode()))
+            return super().respond(request)
+
+    with _provider_client(tmp_path, fake_remote, [SlowCatalog()], timeout=0.04) as client:
+        device_id = _register(client)
+        _refresh(client)
+        started = time.monotonic()
+        response = client.get(f"/api/devices/{device_id}/catalog")
+        elapsed = time.monotonic() - started
+        assert response.status_code == 503
+        assert response.json()["error"]["code"] == "provider_unavailable"
+        assert elapsed < 0.1
+
+
+@pytest.mark.parametrize("operation", ["catalog", "command"])
+def test_inflight_results_are_rejected_after_profile_id_changes_with_same_revision(
+    tmp_path: Path, fake_remote: Any, operation: str
+) -> None:
+    """A repeated revision string cannot make a different profile's late response current."""
+
+    class HeldProvider(ProviderStub):
+        """Pause one response after taking its old-profile snapshot."""
+
+        hold = False
+        entered: asyncio.Event
+        release: asyncio.Event
+
+        async def respond(self, request: httpx.Request) -> httpx.Response:
+            response = super().respond(request)
+            suffix = "/catalog" if operation == "catalog" else "/commands"
+            if self.hold and request.url.path.endswith(suffix):
+                self.entered.set()
+                await self.release.wait()
+            return response
+
+    peer = HeldProvider()
+    with _provider_client(tmp_path, fake_remote, [peer]) as client:
+        device_id = _register(client)
+        _refresh(client)
+
+        async def switch_profile_during_request() -> httpx.Response:
+            """Race through public HTTP with a real provider refresh between request/response."""
+            peer.entered, peer.release = asyncio.Event(), asyncio.Event()
+            peer.hold = True
+            transport = httpx.ASGITransport(app=client.app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://appliance.test") as asynchronous:
+                if operation == "catalog":
+                    pending = asyncio.create_task(asynchronous.get(f"/api/devices/{device_id}/catalog"))
+                else:
+                    pending = asyncio.create_task(asynchronous.post(f"/api/devices/{device_id}/provider/commands", json={
+                        "command_id": str(uuid4()), "action": "launch", "item_id": "app-family", "profile_revision": "family-1",
+                    }))
+                try:
+                    await asyncio.wait_for(peer.entered.wait(), timeout=1)
+                    # Deliberately reuse the revision: the profile ID itself is essential context.
+                    peer.devices[0]["profile_id"] = "another-profile"
+                    await asyncio.wait_for(client.app.state.providers.refresh(), timeout=1)
+                finally:
+                    peer.release.set()
+                return await asyncio.wait_for(pending, timeout=1)
+
+        assert client.portal is not None
+        response = client.portal.call(switch_profile_during_request)
+        assert response.status_code in (400, 409)
+        assert response.json()["error"]["code"] == "invalid_request"
