@@ -11,7 +11,7 @@ of an external launcher adapter. This is a design proposal, not a description of
 features already implemented.
 -->
 
-Status: proposed, awaiting product approval. Tracking: T323980e4d5825.
+Status: approved; implementation and verification in progress. Tracking: T323980e4d5825.
 
 ## Intent and agreed behavior
 
@@ -80,16 +80,18 @@ All browser requests go through the remote appliance. No proprietary hostname,
 SDK, credentials or private API shape is built into the SPA or public backend.
 Provider networking has bounded timeouts and response sizes; redirects cannot
 silently move requests outside the discovered/configured provider origin. Never
-forward the remote's own API token to a provider. Optional provider credentials
-are configured on the appliance and stay there. Discovery cannot bypass a
-provider's authentication requirements.
+forward the remote's own API token to a provider. The initial implementation
+connects to providers with open internal APIs; outbound provider-credential
+configuration is not yet implemented. Providers requiring credentials need a
+future server-side extension, not credentials embedded in a URL or browser bundle.
+Discovery cannot bypass a provider's authentication requirements.
 
 The initial automatic mode trusts compatible providers on the appliance's local
 network, consistent with the requested zero-prompt discovery. TV pairing is a
 control prerequisite, not cryptographic authentication of a discovered provider.
 Only schema-validated data and allowlisted actions are accepted. Networks that
 need a stronger trust boundary can disable discovery and configure provider
-origins/credentials explicitly; signed plugin packages are outside this version.
+origins explicitly; signed plugin packages are outside this version.
 
 ## Per-TV identity and capabilities
 
