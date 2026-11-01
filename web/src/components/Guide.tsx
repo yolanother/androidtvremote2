@@ -5,7 +5,8 @@
  * Compact selected-TV programme grid for every screen size. Keeps service identities
  * and time labels visible while browsing artwork-rich authoritative UTC intervals,
  * anchored to the current half-hour so the current title remains readable on phones,
- * then opens details before explicit TV actions. Recommendation channels resume/open
+ * then opens details before explicit TV actions. Detail content remains stable while
+ * its sheet exits, and pending detail fetches are cancelled on dismissal. Recommendation channels resume/open
  * their current title and never imply a live-time seek.
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
@@ -46,6 +47,7 @@ export function Guide({ deviceId, deviceName, remote }: { deviceId: string; devi
   const [now, setNow] = useState(Date.now)
   const offset = useMemo(() => guide ? Date.parse(guide.server_time) - Date.now() : 0, [guide?.server_time])
   const [selected, setSelected] = useState<{ channel: GuideChannel; programme: Programme } | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<ProviderTitle | null>(null)
   const timeline = useRef<HTMLDivElement>(null)
   const scopeRef = useRef(remote.scope)
@@ -55,15 +57,14 @@ export function Guide({ deviceId, deviceName, remote }: { deviceId: string; devi
     return () => clearInterval(timer)
   }, [])
   useEffect(() => {
-    setDetail(null)
-    if (!selected || !capabilities.includes('browse')) return
+    if (!detailOpen || !selected || !capabilities.includes('browse')) return
     const controller = new AbortController()
     const scope = remote.scope
     void providerApi.title(deviceId, selected.programme.title_id, controller.signal).then((value) => {
       if (!controller.signal.aborted && scopeRef.current === scope) setDetail(value)
     }).catch(() => { /* Programme metadata remains useful when optional details fail. */ })
     return () => controller.abort()
-  }, [deviceId, remote.scope, selected, capabilities.includes('browse')])
+  }, [deviceId, remote.scope, selected, detailOpen, capabilities.includes('browse')])
 
   const serverNow = now + (Number.isFinite(offset) ? offset : 0)
   const tune = (channel: GuideChannel) => void remote.send({ action: 'tune', channel_id: channel.id, schedule_revision: guide?.revision })
@@ -121,7 +122,7 @@ export function Guide({ deviceId, deviceName, remote }: { deviceId: string; devi
                       const right = Math.min(end, Date.parse(programme.end))
                       const onNow = current(programme, serverNow)
                       const progress = Math.max(0, Math.min(1, (serverNow - Date.parse(programme.start)) / (Date.parse(programme.end) - Date.parse(programme.start))))
-                      return <motion.button key={programme.id} type="button" onClick={() => setSelected({ channel, programme })} whileTap={reduced ? undefined : { scale: 0.98 }} transition={transition}
+                      return <motion.button key={programme.id} type="button" onClick={() => { setDetail(null); setSelected({ channel, programme }); setDetailOpen(true) }} whileTap={reduced ? undefined : { scale: 0.98 }} transition={transition}
                         aria-pressed={selected?.programme.id === programme.id} aria-label={`${programme.title}, ${clock(programme.start, guide.timezone)} – ${clock(programme.end, guide.timezone)}`}
                         style={{ left: (left - start) / timeRange * gridWidth + 3, width: Math.max(1, (right - left) / timeRange * gridWidth - 6), borderColor: onNow ? accent : undefined }}
                         className="tv-guide-programme bg-card hover:bg-accent absolute inset-y-1 min-w-0 cursor-pointer overflow-hidden rounded-xl border text-left focus-visible:z-20">
@@ -143,7 +144,7 @@ export function Guide({ deviceId, deviceName, remote }: { deviceId: string; devi
           </div>
           <p className="text-muted-foreground mt-2 text-[0.6875rem]">Swipe through the schedule. Tune resumes or opens the channel’s current title on your TV.</p>
         </>}
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={detail?.title ?? selected?.programme.title ?? 'Programme details'}
+      <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title={detail?.title ?? selected?.programme.title ?? 'Programme details'}
         description={selected && guide ? `${selected.channel.name} · ${clock(selected.programme.start, guide.timezone)} – ${clock(selected.programme.end, guide.timezone)}` : undefined}
         footer={<>
           {selectedCurrent && capabilities.includes('tune') && <Btn disabled={!selected.programme.available || remote.pending} onClick={() => tune(selected.channel)}><Play aria-hidden className="size-4" />Tune channel</Btn>}

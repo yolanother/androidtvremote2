@@ -39,6 +39,8 @@ half-hour so the current title stays readable near the end of an hour. Artwork, 
 the now marker and programme progress aid scanning. Selecting a programme opens details
 without controlling playback. Tune remains an explicit action for its channel's current
 available title; future programme details only offer the provider's title actions.
+Closing details preserves the title, artwork and actions throughout the exit motion;
+late metadata responses are cancelled so they cannot resize a dismissing sheet.
 
 ## Connecting a provider
 
