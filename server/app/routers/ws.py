@@ -2,7 +2,8 @@
 # repository root.
 #
 # WebSocket event stream for the Android TV Remote appliance. Sends every newly connected
-# client a full snapshot of devices and discovery results, then streams deltas as the
+# client a full snapshot of devices, discovery results and optional provider integration
+# metadata, then streams deltas as the
 # DeviceManager publishes them, so the UI never polls. The only client frame accepted is a
 # ping; control goes over REST where it gets real status codes. A client that stops
 # draining its bounded queue is evicted and its socket closed, because a stalled browser
@@ -47,7 +48,15 @@ async def event_stream(websocket: WebSocket) -> None:
     await websocket.accept()
 
     with manager.event_bus.subscribe() as queue:
-        await websocket.send_json(manager.snapshot())
+        snapshot = manager.snapshot()
+        providers = getattr(websocket.app.state, "providers", None)
+        if providers is not None and providers.list_providers():
+            snapshot["providers"] = [item.model_dump(mode="json") for item in providers.list_providers()]
+            snapshot["integrations"] = [
+                providers.integration(device.id).model_dump(mode="json")
+                for device in manager.list_devices()
+            ]
+        await websocket.send_json(snapshot)
         reader = asyncio.create_task(_read_client_frames(websocket))
         try:
             while True:

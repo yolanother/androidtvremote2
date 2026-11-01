@@ -592,6 +592,22 @@ class DeviceManager:
 
     # -- catalogs ----------------------------------------------------------------------
 
+    async def get_setting(self, key: str) -> str | None:
+        """Read a persisted non-secret appliance preference without blocking the loop.
+
+        :param key: Preference identifier.
+        :returns: String value, or None when it has never been set.
+        """
+        return await asyncio.to_thread(self._registry.get_setting, key)
+
+    async def set_setting(self, key: str, value: str) -> None:
+        """Persist a non-secret appliance preference with the registry's writer lock.
+
+        :param key: Preference identifier.
+        :param value: String preference value.
+        """
+        await asyncio.to_thread(self._registry.set_setting, key, value)
+
     def list_keys(self, category: str | None = None) -> list[KeyDescriptor]:
         """Return the key catalog, optionally narrowed to one category.
 

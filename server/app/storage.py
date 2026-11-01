@@ -4,7 +4,8 @@
 # SQLite-backed device registry for the Android TV Remote appliance. Persists one row per
 # registered TV keyed by its MAC-derived device id, so that registrations and pairing
 # state survive container restarts and rebuilds and so a DHCP lease change updates the
-# mutable host column instead of orphaning a pairing. The connection is deliberately
+# mutable host column instead of orphaning a pairing. Also stores small appliance
+# preferences such as optional-provider enablement. The connection is deliberately
 # opened in TRUNCATE journal mode with synchronous=FULL because the data directory is an
 # NFS mount, where SQLite's WAL mode requires shared-memory mmap and will corrupt.
 """SQLite-backed device registry for the Android TV Remote appliance."""
@@ -30,6 +31,10 @@ CREATE TABLE IF NOT EXISTS devices (
     paired      INTEGER NOT NULL DEFAULT 0,
     enabled     INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
 );
 """
 
@@ -202,6 +207,29 @@ class Registry:
         """
         with self._lock:
             self.connection.execute("DELETE FROM devices WHERE id = ?", (device_id,))
+            self.connection.commit()
+
+    def get_setting(self, key: str) -> str | None:
+        """Read one non-secret appliance preference, or None when unset.
+
+        :param key: Stable preference name.
+        :returns: Persisted string value or None.
+        """
+        with self._lock:
+            row = self.connection.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Persist one non-secret preference using the registry's serialized writer.
+
+        :param key: Stable preference name.
+        :param value: String preference value; credentials are not stored here.
+        """
+        with self._lock:
+            self.connection.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value),
+            )
             self.connection.commit()
 
 

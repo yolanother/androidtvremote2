@@ -5,7 +5,7 @@
 # serves all four consumer surfaces on one port: the built SPA at /, the REST API and its
 # OpenAPI docs under /api, the WebSocket event stream at /api/ws, and the MCP server at
 # /mcp when that module is present. It owns the lifespan that starts and stops the
-# DeviceManager, the exception handlers that render every failure in the contract's error
+# DeviceManager and optional provider registry, exception handlers for the contract's error
 # envelope, CORS, and the Content-Security-Policy that lets the embed view be framed by a
 # home panel.
 """Application factory for the Android TV Remote appliance."""
@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Depends, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,7 +31,8 @@ from .deps import ManagerDep, require_token
 from .devices import DeviceManager
 from .errors import NotFound, RemoteError
 from .models import HealthResponse
-from .routers import catalog, devices, discovery, ws
+from .providers.registry import ProviderRegistry
+from .routers import catalog, devices, discovery, providers, ws
 from .vendored import AndroidTVRemote
 
 LOGGER = logging.getLogger(__name__)
@@ -43,6 +45,7 @@ def create_app(
     settings: Settings | None = None,
     remote_factory: Callable[..., Any] = AndroidTVRemote,
     legacy_seed_path: Path | None = None,
+    provider_transport: httpx.AsyncBaseTransport | None = None,
 ) -> FastAPI:
     """Build the appliance's FastAPI application.
 
@@ -50,6 +53,7 @@ def create_app(
     :param remote_factory: Factory producing ``AndroidTVRemote``-compatible objects.
         Overridden by tests so the app can run without a TV on the network.
     :param legacy_seed_path: Location of the old build's ``paired_tvs.json``.
+    :param provider_transport: Optional in-process provider HTTP transport for tests.
     :returns: The configured application, ready for uvicorn.
     """
     resolved = settings or get_settings()
@@ -59,14 +63,17 @@ def create_app(
     manager = DeviceManager(
         resolved, remote_factory=remote_factory, legacy_seed_path=legacy_seed_path
     )
+    integrations = ProviderRegistry(resolved, manager, transport=provider_transport)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        """Run the DeviceManager for the life of the process."""
+        """Run optional providers inside the device manager's database lifetime."""
         await manager.start()
         try:
+            await integrations.start()
             yield
         finally:
+            await integrations.stop()
             await manager.stop()
 
     app = FastAPI(
@@ -84,6 +91,7 @@ def create_app(
     )
     app.state.settings = resolved
     app.state.devices = manager
+    app.state.providers = integrations
 
     app.add_middleware(
         CORSMiddleware,
@@ -115,6 +123,7 @@ def create_app(
     api.include_router(devices.router)
     api.include_router(discovery.router)
     api.include_router(catalog.router)
+    api.include_router(providers.router)
     app.include_router(api)
     # The WebSocket authenticates inside the handler: a failed HTTP dependency cannot
     # close a WebSocket handshake with a meaningful code.

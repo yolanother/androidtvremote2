@@ -4,7 +4,7 @@
 # Environment-driven configuration for the Android TV Remote appliance. Defines the
 # Settings model covering the NFS-backed data directory, HTTP bind address, optional
 # bearer token, pairing client name, mDNS discovery behaviour, iframe embedding policy,
-# and CORS origins, together with the derived paths for the SQLite database and
+# and CORS origins, optional provider discovery/request bounds, and the derived paths for the SQLite database and
 # per-device certificate directories. There is deliberately no config file: every knob is
 # an environment variable so the container is configured entirely through compose.
 """Environment-driven configuration for the Android TV Remote appliance."""
@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     discovery_enabled: bool = Field(default=True)
     #: Seconds between full mDNS rescans.
     discovery_interval: int = Field(default=60, ge=5)
+    #: Comma-separated provider base URLs when LAN multicast is unavailable.
+    provider_urls: str = Field(default="")
+    #: Upper bound in seconds for an optional provider HTTP request/connection.
+    provider_timeout: float = Field(default=5, gt=0, le=30)
+    #: Snapshot fallback cadence in seconds alongside provider event streams.
+    provider_poll_interval: float = Field(default=15, ge=1, le=3600)
     #: Public HTTPS origin this appliance is also reachable at, e.g.
     #: ``https://remote.example.net``. Purely advisory: the appliance never calls it. It
     #: exists so the web UI can point a phone at a secure origin, because a browser will

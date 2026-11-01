@@ -118,3 +118,22 @@ class NotFound(RemoteError):
 
     code = "not_found"
     status = 404
+
+
+class ProviderUnavailable(RemoteError):
+    """An optional provider is absent, ambiguous or failed a bounded request."""
+
+    code = "provider_unavailable"
+    status = 503
+
+
+class InvalidRequest(RemoteError):
+    """A typed action is unsupported, malformed or targets stale provider state."""
+
+    code = "invalid_request"
+    status = 400
+
+    def __init__(self, message: str, *, status: int = 400) -> None:
+        """Describe an invalid action; use 409 when its expected state has changed."""
+        super().__init__(message)
+        self.status = status

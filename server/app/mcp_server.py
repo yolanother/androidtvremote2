@@ -6,7 +6,9 @@
 # and control Android TV devices. Wraps the DeviceManager facade in agent-facing tools and
 # resources, translates every domain failure into a recoverable {"error": {...}} envelope
 # instead of raising, drives the human-in-the-loop pairing handshake, and guards the
-# endpoint with the same optional REMOTE_API_TOKEN bearer token as the REST API.
+# endpoint with the same optional REMOTE_API_TOKEN bearer token as the REST API. When
+# supplied a provider registry it also exposes generic device-scoped provider browsing,
+# guide, profile, playback and guarded command tools without private service mappings.
 """MCP server exposing Android TV discovery, pairing, and control to LLM agents."""
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ if TYPE_CHECKING:  # pragma: no cover - imported for typing only.
     # DeviceManager lands on the backend branch. Importing it only under TYPE_CHECKING
     # keeps this module importable — and testable against a stub — without it.
     from .devices import DeviceManager
+    from .providers.registry import ProviderRegistry
 
 #: Server name advertised to MCP clients, per docs/design/api-contract.md.
 SERVER_NAME = "androidtv-remote"
@@ -148,7 +151,7 @@ def _never_raises(
     return wrapper
 
 
-def build_mcp_server(manager: DeviceManager) -> MCPServer:
+def build_mcp_server(manager: DeviceManager, providers: ProviderRegistry | None = None) -> MCPServer:
     """Build the MCP server exposing every contract tool and resource.
 
     This is the transport-independent core: it registers the tools and resources against
@@ -156,6 +159,7 @@ def build_mcp_server(manager: DeviceManager) -> MCPServer:
     drive directly (tests do) or wrap in an ASGI app via :func:`build_mcp_app`.
 
     :param manager: The device facade every tool delegates to.
+    :param providers: Optional generic provider facade; adds device-scoped integration tools.
     :returns: A configured :class:`~mcp.server.mcpserver.MCPServer`.
     """
     server: MCPServer = MCPServer(
@@ -178,7 +182,89 @@ def build_mcp_server(manager: DeviceManager) -> MCPServer:
     _register_control_tools(server, manager)
     _register_catalog_tools(server, manager)
     _register_resources(server, manager)
+    if providers is not None:
+        _register_provider_tools(server, providers)
     return server
+
+
+def _register_provider_tools(server: MCPServer, providers: ProviderRegistry) -> None:
+    """Expose optional provider capabilities through the same guarded facade as REST.
+
+    :param server: MCP server receiving additive provider tools.
+    :param providers: Lifecycle-owned optional provider registry.
+    """
+
+    @server.tool()
+    @_never_raises
+    async def list_providers() -> dict[str, Any]:
+        """List optional LAN provider health; no provider is required for core controls."""
+        return {"providers": _dump_all(providers.list_providers())}
+
+    @server.tool()
+    @_never_raises
+    async def get_integration(device_id: str) -> dict[str, Any]:
+        """Get the selected paired TV's optional capabilities and active profile."""
+        return _dump(providers.integration(device_id))
+
+    @server.tool()
+    @_never_raises
+    async def get_provider_catalog(device_id: str) -> dict[str, Any]:
+        """List apps and services available to this TV/profile, including launch item IDs."""
+        return await providers.data(device_id, "catalog")
+
+    @server.tool()
+    @_never_raises
+    async def get_provider_guide(device_id: str, start: str, end: str) -> dict[str, Any]:
+        """Read a TV's guide using timezone-aware start/end timestamps, at most 24 hours."""
+        return await providers.data(device_id, "guide", params={"from": start, "to": end})
+
+    @server.tool()
+    @_never_raises
+    async def browse_provider(
+        device_id: str, query: str | None = None, mode: str = "continue", cursor: str | None = None,
+    ) -> dict[str, Any]:
+        """Search titles or read a bounded continue-watching page for the selected TV."""
+        if mode not in {"continue", "search", "all", "new"}:
+            return _fail(INVALID_REQUEST, "Unsupported browse mode")
+        params = {key: value for key, value in {"query": query, "mode": mode, "cursor": cursor}.items() if value is not None}
+        return await providers.data(device_id, "browse", params=params)
+
+    @server.tool()
+    @_never_raises
+    async def get_provider_title(device_id: str, title_id: str) -> dict[str, Any]:
+        """Read title details and supported resume/open actions from the TV's provider."""
+        return await providers.data(device_id, "titles", item_id=title_id)
+
+    @server.tool()
+    @_never_raises
+    async def get_provider_profiles(device_id: str) -> dict[str, Any]:
+        """List safe launcher profile choices, excluding private account administration."""
+        return await providers.data(device_id, "profiles")
+
+    @server.tool()
+    @_never_raises
+    async def get_provider_playback(device_id: str) -> dict[str, Any]:
+        """Read observed native playback; null means unknown or expired, not an error."""
+        return {"playback": await providers.data(device_id, "playback")}
+
+    @server.tool()
+    @_never_raises
+    async def send_provider_command(device_id: str, command: dict[str, Any]) -> dict[str, Any]:
+        """Send an allowlisted provider action with command UUID and expected session/profile.
+
+        Read get_integration first. Use catalog item IDs for launch, guide channel IDs
+        for tune, and an observed session_id for media actions. Never infer playback
+        from an accepted acknowledgement.
+        """
+        from pydantic import ValidationError
+
+        from .providers.models import Command
+
+        try:
+            parsed = Command.model_validate(command)
+        except ValidationError:
+            return _fail(INVALID_REQUEST, "Invalid provider command body")
+        return _dump(await providers.command(device_id, parsed))
 
 
 def _register_registry_tools(server: MCPServer, manager: DeviceManager) -> None:
@@ -702,7 +788,9 @@ class _SingleEndpoint:
         await self.app(scope, receive, send)
 
 
-def build_mcp_app(manager: DeviceManager, token: str | None = None) -> Starlette:
+def build_mcp_app(
+    manager: DeviceManager, token: str | None = None, providers: ProviderRegistry | None = None,
+) -> Starlette:
     """Build the streamable-HTTP ASGI app that serves the MCP server.
 
     The returned app does **not** receive ASGI lifespan events when a host application
@@ -713,11 +801,12 @@ def build_mcp_app(manager: DeviceManager, token: str | None = None) -> Starlette
     :param manager: The device facade every tool delegates to.
     :param token: Required bearer token. Defaults to ``REMOTE_API_TOKEN`` from the
         environment; auth is skipped entirely when neither is set.
+    :param providers: Optional generic provider registry for additive integration tools.
     :returns: A Starlette app whose ``router.lifespan_context`` the caller must enter.
     """
     if token is None:
         token = get_settings().remote_api_token
-    app = build_mcp_server(manager).streamable_http_app(
+    app = build_mcp_server(manager, providers).streamable_http_app(
         streamable_http_path="/",
         # This appliance is reached by LAN IP or hostname, not localhost, so the SDK's
         # localhost-only DNS-rebinding defaults would reject every real request.
@@ -730,7 +819,8 @@ def build_mcp_app(manager: DeviceManager, token: str | None = None) -> Starlette
 
 
 def mount_mcp(
-    host_app: Any, manager: DeviceManager, path: str = "/mcp", token: str | None = None
+    host_app: Any, manager: DeviceManager, path: str = "/mcp", token: str | None = None,
+    providers: ProviderRegistry | None = None,
 ) -> Starlette:
     """Attach the MCP server to a FastAPI/Starlette application. One call does everything.
 
@@ -749,9 +839,12 @@ def mount_mcp(
     :param manager: The device facade every tool delegates to.
     :param path: Path to serve MCP on. Defaults to ``/mcp`` per the API contract.
     :param token: Required bearer token; defaults to ``REMOTE_API_TOKEN``.
+    :param providers: Optional generic provider registry for additive integration tools.
     :returns: The MCP ASGI app, for callers that want to inspect it.
     """
-    mcp_app = build_mcp_app(manager, token)
+    if providers is None:
+        providers = getattr(getattr(host_app, "state", None), "providers", None)
+    mcp_app = build_mcp_app(manager, token, providers)
     host_app.router.routes.append(
         Route(path, endpoint=mcp_app, methods=["GET", "POST", "DELETE"])
     )
