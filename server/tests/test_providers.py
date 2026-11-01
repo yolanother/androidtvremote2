@@ -138,6 +138,8 @@ class ProviderStub:
         if resource == "catalog":
             return httpx.Response(200, json=self.catalogs[device_id])
         if resource == "playback":
+            if self.playbacks[device_id] is None:
+                return httpx.Response(200, content="null", headers={"Content-Type": "application/json"})
             return httpx.Response(200, json=self.playbacks[device_id])
         if resource == "guide":
             return httpx.Response(200, json={
