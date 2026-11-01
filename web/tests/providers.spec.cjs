@@ -11,6 +11,8 @@
  * scrolling, held keys, independently scrollable browsing destinations, real app
  * icons and TV usage ranking, profile artwork, spring tab transitions and a compact
  * artwork-rich guide timeline on phones as well as larger displays.
+ * Covers enlarged-text phone viewport budgets and installed-app update notices so
+ * clipping and overlapping hit regions cannot masquerade as a non-scrolling layout.
  */
 const { test, expect } = require('@playwright/test');
 
@@ -18,6 +20,32 @@ const TV_A = 'aabbccddeeff';
 const TV_B = '112233445566';
 const PLAYER = 'org.example.player';
 const CAPS = ['catalog', 'browse', 'guide', 'tune', 'channel_step', 'playback', 'profiles'];
+
+/** Inspect the real painted rectangle against every ancestor that clips overflow. */
+async function expectUnclippedSurface(page, surface, visibleHeight) {
+  const geometry = await surface.evaluate((element, visibleHeight) => {
+    const r = element.getBoundingClientRect();
+    const clipped = [];
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+      const style = getComputedStyle(parent);
+      const p = parent.getBoundingClientRect();
+      if (/hidden|clip|auto|scroll/.test(style.overflowY) && (r.top < p.top - 1 || r.bottom > p.bottom + 1)) {
+        clipped.push({ tag: parent.tagName, overflow: style.overflowY, top: p.top, bottom: p.bottom });
+      }
+    }
+    return { width: r.width, height: r.height, top: r.top, bottom: r.bottom, clipped,
+      visibleHeight: visibleHeight ?? innerHeight, pageScroll: [scrollX, scrollY] };
+  }, visibleHeight);
+  expect.soft(geometry.width, JSON.stringify(geometry)).toBeGreaterThanOrEqual(120);
+  expect.soft(geometry.height, JSON.stringify(geometry)).toBeGreaterThanOrEqual(120);
+  expect.soft(geometry.clipped).toEqual([]);
+  expect.soft(geometry.top).toBeGreaterThanOrEqual(0);
+  expect.soft(geometry.bottom).toBeLessThanOrEqual(geometry.visibleHeight + 1);
+  expect.soft(geometry.pageScroll).toEqual([0, 0]);
+  return geometry;
+}
+
+
 
 /** One registered paired TV with the existing public Device response shape. */
 function device(id, name) {
@@ -1011,4 +1039,242 @@ test('an unavailable current programme cannot tune its channel from the grid or 
   await page.getByText('Family programme', { exact: true }).click();
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Tune channel', exact: true })).toBeDisabled();
   expect(data.commands).toEqual([]);
+});
+
+test('enlarged-text phone keeps the entire dpad and core deck usable at 360x480', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 480 });
+  const data = fixtures();
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await chooseMode(page, 'dpad');
+  await page.addStyleTag({ content: ':root { font-size: 24px !important; }' });
+  await frames(page);
+  await expectUnclippedSurface(page, page.locator('[data-remote-surface]').first());
+  await expectCoreKeysInViewport(page);
+});
+
+for (const viewport of [{ width: 360, height: 480 }, { width: 360, height: 560 }]) {
+  for (const mode of ['dpad', 'touch']) {
+    if (viewport.height === 480 && mode === 'dpad') continue; // The tracer case above owns this combination.
+    test(`enlarged-text ${mode} stays fully usable at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      const data = fixtures();
+      await install(page, data);
+      await page.goto(`/d/${TV_A}`);
+      await chooseMode(page, mode);
+      await page.addStyleTag({ content: ':root { font-size: 24px !important; }' });
+      await frames(page);
+      const surface = page.locator('[data-remote-surface]').first();
+      await expectUnclippedSurface(page, surface);
+      await expectCoreKeysInViewport(page);
+      const before = await controlGeometry(surface);
+      const box = await surface.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.wheel(0, 500);
+      await frames(page);
+      const after = await controlGeometry(surface);
+      expect(after.ancestors.map((a) => [a.top, a.left])).toEqual(before.ancestors.map((a) => [a.top, a.left]));
+      expect(after.windowY).toBe(0);
+    });
+  }
+}
+
+test('enlarged-text destination tabs and the single input picker never overlap', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  const data = fixtures();
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await page.addStyleTag({ content: ':root { font-size: 24px !important; }' });
+  for (const selected of ['Controls', 'Apps', 'Guide', 'Playing']) {
+    await destination(page, selected).click();
+    await page.waitForTimeout(450);
+    const picker = await page.getByRole('combobox', { name: 'Control mode', exact: true }).boundingBox();
+    const tabs = await page.getByRole('tablist', { name: 'Remote destination' }).getByRole('tab').evaluateAll((elements) => elements.map((el) => {
+      const r = el.getBoundingClientRect(); const span = el.querySelector('span');
+      return { name: el.getAttribute('aria-label'), x: r.x, right: r.right, y: r.y, width: r.width, height: r.height,
+        label: span.getBoundingClientRect().width, selected: el.getAttribute('aria-selected') === 'true' };
+    }));
+    expect(tabs).toHaveLength(4);
+    expect(picker.width).toBeGreaterThanOrEqual(44);
+    expect(picker.width).toBeLessThanOrEqual(48);
+    for (let i = 0; i < tabs.length; i++) {
+      const tab = tabs[i];
+      expect.soft(tab.width, JSON.stringify(tabs)).toBeGreaterThanOrEqual(44);
+      expect.soft(tab.height).toBeGreaterThanOrEqual(44);
+      expect.soft(tab.right).toBeLessThanOrEqual(picker.x + 1);
+      if (i) expect.soft(tab.x).toBeGreaterThanOrEqual(tabs[i - 1].right - 1);
+      expect.soft(Math.abs(tab.y + tab.height / 2 - picker.y - picker.height / 2)).toBeLessThanOrEqual(2);
+      if (!tab.selected) expect.soft(tab.label).toBeLessThanOrEqual(1);
+    }
+    expect(tabs.find((tab) => tab.selected).name).toBe(selected);
+    expect(tabs.find((tab) => tab.selected).label).toBeGreaterThan(10);
+  }
+});
+
+/** Replace only browser viewport metrics; layout viewport and DOM remain real. */
+async function installVisualViewport(page) {
+  await page.addInitScript(() => {
+    const visual = new EventTarget();
+    Object.assign(visual, { width: innerWidth, height: innerHeight, scale: 1, offsetTop: 0, offsetLeft: 0 });
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: visual });
+    window.__setVisualViewport = (height, scale = 1) => {
+      Object.assign(visual, { height, scale }); visual.dispatchEvent(new Event('resize'));
+    };
+  });
+}
+
+test('remote refits the visible viewport without treating pinch zoom as a smaller layout', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installVisualViewport(page);
+  const data = fixtures(); await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  for (const mode of ['dpad', 'touch']) {
+    await chooseMode(page, mode);
+    await page.evaluate(() => window.__setVisualViewport(600));
+    await page.waitForTimeout(150);
+    const surface = page.locator('[data-remote-surface]').first();
+    await expectUnclippedSurface(page, surface, 600);
+    for (const name of ['Back', 'Home', 'Play or pause', 'Volume down', 'Volume up']) {
+      const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+      expect.soft(box.y + box.height, name).toBeLessThanOrEqual(601);
+    }
+    const before = await surface.boundingBox();
+    await page.evaluate(() => window.__setVisualViewport(300, 2));
+    await page.waitForTimeout(150);
+    const zoomed = await surface.boundingBox();
+    expect(Math.abs(zoomed.height - before.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(zoomed.y - before.y)).toBeLessThanOrEqual(1);
+    await page.evaluate(() => window.__setVisualViewport(844));
+    await page.waitForTimeout(150);
+  }
+});
+
+/** Test-owned browser registration boundary: the production runtime still owns policy. */
+async function installPwaRegistration(page, { waiting = false } = {}) {
+  await page.route('**/@vite-plugin-pwa/virtual:pwa-register*', (route) => route.fulfill({
+    contentType: 'application/javascript',
+    body: `
+      export function registerSW(options) {
+        const fixture = window.__pwaFixture = {
+          checks: 0, applications: 0, rejectNext: false, holdNext: false, release: null,
+          notify: () => options.onNeedRefresh?.(),
+        };
+        const registration = fixture.registration = {
+          waiting: ${waiting ? '{}' : 'null'},
+          installing: null,
+          active: {},
+          addEventListener() {},
+          update() {
+            fixture.checks++;
+            if (fixture.rejectNext) { fixture.rejectNext = false; return Promise.reject(new Error('Fixture offline')); }
+            if (fixture.holdNext) {
+              fixture.holdNext = false;
+              return new Promise(resolve => { fixture.release = () => { fixture.release = null; resolve(registration); }; });
+            }
+            return Promise.resolve(registration);
+          },
+        };
+        options.onRegisteredSW?.('/sw.js', registration);
+        return async (reload) => { if (reload) fixture.applications++; };
+      }
+    `,
+  }));
+}
+
+for (const setup of [
+  { width: 390, height: 844, font: 16 },
+  { width: 360, height: 640, font: 16 },
+  { width: 360, height: 560, font: 20 },
+]) {
+  test(`waiting update notice cannot cover controls at ${setup.width}x${setup.height} font${setup.font}`, async ({ page }) => {
+    await page.setViewportSize(setup);
+    await installPwaRegistration(page);
+    const data = fixtures(); await install(page, data);
+    await page.goto(`/d/${TV_A}`);
+    await chooseMode(page, 'touch');
+    await page.addStyleTag({ content: `:root { font-size: ${setup.font}px !important; }` });
+    await page.evaluate(() => window.__pwaFixture.notify());
+    const notice = page.getByRole('status').filter({ has: page.getByRole('button', { name: 'Reload', exact: true }) });
+    await expect(notice).toBeVisible();
+    await frames(page);
+    await expectUnclippedSurface(page, page.locator('[data-remote-surface]').first());
+    await expectCoreKeysInViewport(page);
+    const noticeBox = await notice.boundingBox();
+    for (const name of ['Back', 'Home', 'Play or pause', 'Mute', 'Volume down', 'Volume up']) {
+      const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+      const intersection = Math.max(0, Math.min(box.x + box.width, noticeBox.x + noticeBox.width) - Math.max(box.x, noticeBox.x))
+        * Math.max(0, Math.min(box.y + box.height, noticeBox.y + noticeBox.height) - Math.max(box.y, noticeBox.y));
+      expect.soft(intersection, `${name} must not be covered by the update notice`).toBe(0);
+    }
+    expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
+    const before = await page.getByRole('main').boundingBox();
+    await page.getByRole('button', { name: 'Dismiss the update notice', exact: true }).click();
+    await expect(notice).toHaveCount(0);
+    await frames(page);
+    const after = await page.getByRole('main').boundingBox();
+    expect(after.height).toBeGreaterThan(before.height + 10);
+    await expectUnclippedSurface(page, page.locator('[data-remote-surface]').first());
+  });
+}
+
+test('an installed app exposes an already waiting worker without automatically applying it', async ({ page }) => {
+  await installPwaRegistration(page, { waiting: true });
+  const data = fixtures(); await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await expect(page.getByRole('button', { name: 'Reload', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
+  await chooseMode(page, 'touch');
+  const surface = page.locator('[data-remote-surface]').first();
+  const box = await surface.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.evaluate(() => window.__pwaFixture.notify());
+  expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
+  await page.mouse.up();
+  await page.getByRole('button', { name: 'Reload', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.__pwaFixture.applications)).toBe(1);
+});
+
+test('installed app rechecks updates on resume without event storms or unhandled offline failures', async ({ page }) => {
+  await page.clock.install();
+  await installPwaRegistration(page);
+  const data = fixtures(); await install(page, data);
+  const errors = []; page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto(`/d/${TV_A}`);
+  await page.getByRole('combobox', { name: 'Control mode', exact: true }).waitFor();
+  const checks = () => page.evaluate(() => window.__pwaFixture.checks);
+  await page.clock.fastForward(61000);
+  const beforeFocus = await checks();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect.poll(checks).toBe(beforeFocus + 1);
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event('online'));
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await frames(page);
+  expect(await checks()).toBe(beforeFocus + 1);
+  await page.clock.fastForward(61000);
+  await page.evaluate(() => {
+    window.__pwaFixture.holdNext = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(checks).toBe(beforeFocus + 2);
+  await page.clock.fastForward(61000);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  expect(await checks()).toBe(beforeFocus + 2);
+  await page.evaluate(() => window.__pwaFixture.release());
+  await page.clock.fastForward(61000);
+  await page.evaluate(() => { window.__pwaFixture.rejectNext = true; window.dispatchEvent(new Event('online')); });
+  await expect.poll(checks).toBe(beforeFocus + 3);
+  await frames(page);
+  expect(errors).toEqual([]);
+  await page.clock.fastForward(61000);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect.poll(checks).toBe(beforeFocus + 4);
+  const beforeHourly = await checks();
+  await page.clock.fastForward(3600000);
+  expect(await checks()).toBeGreaterThan(beforeHourly);
+  expect(await page.evaluate(() => window.__pwaFixture.applications)).toBe(0);
+  expect(errors).toEqual([]);
 });
