@@ -179,8 +179,10 @@ test('without a provider the remote retains generic keys and app launching', asy
   expect(data.genericLaunches[0]).toMatchObject({ device_id: TV_A, app: PLAYER });
 });
 
-test('guide channel actions target the selected TV without fabricating playback', async ({ page }) => {
+for (const profileId of ['family', null]) {
+test(`guide channel actions target the selected TV without fabricating playback (${profileId ?? 'household'})`, async ({ page }) => {
   const data = fixtures();
+  data.resources[TV_A].integration.profile_id = profileId;
   data.resources[TV_A].playback = null;
   await install(page, data);
   await page.goto(`/d/${TV_A}`);
@@ -188,12 +190,13 @@ test('guide channel actions target the selected TV without fabricating playback'
   await expect(page.getByText('Family programme', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Channel up', exact: true }).click();
   await expect.poll(() => data.commands.length).toBe(1);
-  expect(data.commands[0]).toMatchObject({ device_id: TV_A, action: 'channel_step', direction: 'up' });
+  expect(data.commands[0]).toMatchObject({ device_id: TV_A, action: 'channel_step', direction: 'up', profile_id: profileId });
   expect(data.commands[0].command_id).toMatch(/^[0-9a-f]{8}-[0-9a-f-]{27}$/i);
   await destination(page, 'Playing').click();
   await expect(page.getByText('Family observed title', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Living Room TV/ }).first()).toBeVisible();
 });
+}
 
 test('future guide selection opens title details before any playback command', async ({ page }) => {
   const data = fixtures();
@@ -281,11 +284,12 @@ test('observed provider playback uses only advertised session-scoped actions', a
   expect(data.commands.some((command) => command.action === 'seek')).toBe(false);
 });
 
-for (const unavailable of ['stale', 'other-app']) {
+for (const unavailable of ['stale', 'other-app', 'unknown', 'idle']) {
   test(`${unavailable} provider playback falls back to a valid Cast session`, async ({ page }) => {
     const data = fixtures();
     if (unavailable === 'stale') data.resources[TV_A].playback.observed_at = new Date(Date.now() - 31000).toISOString();
-    else data.resources[TV_A].playback.package = 'org.example.other';
+    else if (unavailable === 'other-app') data.resources[TV_A].playback.package = 'org.example.other';
+    else Object.assign(data.resources[TV_A].playback, { player_state: unavailable.toUpperCase(), title: null, actions: [] });
     data.devices[0].state.now_playing = {
       title: 'Current Cast title', subtitle: 'Cast subtitle', album: null, season: null, episode: null,
       content_type: 'video/mp4', player_state: 'PLAYING', position: 10, duration: 600,
