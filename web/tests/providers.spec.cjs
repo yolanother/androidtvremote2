@@ -805,6 +805,55 @@ function visualGuide(data) {
   Object.assign(channel.programmes[1], { image_url: '/api/icons/future-art', start: new Date(now + 45 * 60000).toISOString(), end: new Date(now + 105 * 60000).toISOString() });
 }
 
+for (const width of [360, 390]) {
+  test(`initial phone guide keeps the current title readable near minute58 at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const data = fixtures();
+    visualGuide(data);
+    const guide = data.resources[TV_A].guide;
+    const now = Date.parse('2026-11-01T20:58:00Z');
+    guide.server_time = new Date(now).toISOString();
+    Object.assign(guide.channels[0].programmes[0], {
+      start: '2026-11-01T20:48:00Z', end: '2026-11-01T21:48:00Z',
+    });
+    Object.assign(guide.channels[0].programmes[1], {
+      start: '2026-11-01T21:48:00Z', end: '2026-11-01T22:48:00Z',
+    });
+    await install(page, data);
+    await page.goto(`/d/${TV_A}`);
+    await destination(page, 'Guide').click();
+    const timeline = page.getByLabel('Guide timeline', { exact: true });
+    await expect(timeline).toBeVisible();
+    const viewport = await timeline.boundingBox();
+    const rail = await timeline.getByText('Family recommendations', { exact: true }).evaluate((element) => {
+      for (let node = element; node; node = node.parentElement) {
+        const css = getComputedStyle(node);
+        if (css.position === 'sticky' && css.left !== 'auto') {
+          const rect = node.getBoundingClientRect();
+          return { right: rect.right };
+        }
+      }
+      return null;
+    });
+    expect(rail).not.toBeNull();
+    const programmeButton = page.getByRole('button').filter({ has: page.getByText('Family programme', { exact: true }) });
+    const programme = await programmeButton.boundingBox();
+    // Measure what the person can actually see after the sticky rail occludes the
+    // timeline, rather than accepting the full offscreen programme button width.
+    const visibleWidth = Math.min(programme.x + programme.width, viewport.x + viewport.width)
+      - Math.max(programme.x, viewport.x, rail.right);
+    expect(visibleWidth, 'Current programme should have enough visible width to read').toBeGreaterThanOrEqual(120);
+    const marker = await timeline.getByLabel('Current time', { exact: true }).first().boundingBox();
+    expect(marker.x - rail.right, 'Now should remain close to the channel rail on initial view').toBeLessThanOrEqual(100);
+    expect(marker.x).toBeGreaterThanOrEqual(rail.right);
+    await expect(timeline.getByText(/12:30|1:00|13:00/).first()).toBeVisible();
+    expect(data.commands, 'Opening the guide must never tune automatically').toEqual([]);
+    await programmeButton.click();
+    await expect(page.getByRole('dialog').getByText(/12:48.*1:48/)).toBeVisible();
+    expect(data.commands, 'Reading the original programme interval must not tune').toEqual([]);
+  });
+}
+
 for (const width of [390, 1440]) {
   test(`artwork guide time grid contains horizontal pan and keeps service rail fixed at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
@@ -873,6 +922,58 @@ test('artwork guide selection expands details without tuning and preserves expli
   await expect.poll(() => data.commands.length).toBe(1);
   expect(data.commands[0]).toMatchObject({ device_id: TV_A, action: 'tune', channel_id: `${TV_A}-channel`, schedule_revision: 'guide-1', profile_id: 'family' });
 });
+
+for (const reducedMotion of ['no-preference', 'reduce']) {
+  test(`selected programme content stays intact throughout visible detail exit (${reducedMotion})`, async ({ page }) => {
+    const data = fixtures();
+    visualGuide(data);
+    await page.emulateMedia({ reducedMotion });
+    await install(page, data);
+    await page.goto(`/d/${TV_A}`);
+    await destination(page, 'Guide').click();
+    await page.getByText('Family programme', { exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByText('Family title details', { exact: true })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Resume on TV', exact: true })).toBeVisible();
+    await expect(dialog.locator('img[src="/api/icons/programme-art"]')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const exit = await dialog.evaluate(async (element) => {
+      const sample = () => {
+        const rect = element.getBoundingClientRect();
+        return {
+          visible: element.isConnected && element.open && rect.width > 0 && rect.height > 0 && Number(getComputedStyle(element).opacity) > .1,
+          // Untransformed layout size distinguishes a content jump from the
+          // intentional scale/translation of the dialog's exit animation.
+          height: element.clientHeight,
+          title: element.querySelector('h1,h2,h3')?.textContent,
+          text: element.textContent,
+          images: [...element.querySelectorAll('img')].map((image) => image.getAttribute('src')),
+          buttons: [...element.querySelectorAll('button')].map((button) => button.textContent),
+        };
+      };
+      const before = sample();
+      element.querySelector('button[aria-label="Close"]').click();
+      const samples = [];
+      for (let i = 0; i < 20; i++) {
+        await new Promise(requestAnimationFrame);
+        samples.push(sample());
+      }
+      return { before, samples };
+    });
+    expect(exit.before.visible).toBe(true);
+    const visible = exit.samples.filter((sample) => sample.visible);
+    if (reducedMotion === 'no-preference') expect(visible.length).toBeGreaterThan(0);
+    for (const sample of visible) {
+      expect(sample.height, 'Visible exit must preserve the selected programme layout').toBe(exit.before.height);
+      expect(sample.title, 'Visible exit must not flash a generic title').toBe(exit.before.title);
+      expect(sample.text).toBe(exit.before.text);
+      expect(sample.images).toEqual(exit.before.images);
+      expect(sample.buttons).toEqual(exit.before.buttons);
+    }
+    await expect(dialog).toBeHidden();
+    expect(data.commands).toEqual([]);
+  });
+}
 
 test('future programme details offer explicit Open/Resume without falsely tuning a scheduled title', async ({ page }) => {
   const data = fixtures();
