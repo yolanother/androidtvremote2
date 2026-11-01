@@ -8,7 +8,9 @@
  * authoritative guide actions, source-aware playback and race-safe TV/profile
  * changes without any physical TV or production-service traffic.
  * Also checks compact navigation and actual control-pane geometry, wheel/touch
- * scrolling, held keys, and independently scrollable long browsing destinations.
+ * scrolling, held keys, independently scrollable browsing destinations, real app
+ * icons and TV usage ranking, profile artwork, spring tab transitions and a compact
+ * artwork-rich guide timeline on phones as well as larger displays.
  */
 const { test, expect } = require('@playwright/test');
 
@@ -165,6 +167,16 @@ test('a capable selected TV exposes the Guide destination', async ({ page }) => 
   await expect(destination(page, 'Guide')).toBeVisible();
 });
 
+test('provider apps use package icons when optional provider artwork is absent', async ({ page }) => {
+  const data = fixtures();
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await destination(page, 'Apps').click();
+  const app = page.getByRole('button', { name: 'Open Family player', exact: true });
+  await expect(app.locator('img')).toHaveAttribute('src', `/api/icons/${PLAYER}`);
+  await expect.poll(() => data.requests.some((r) => r.path === `/api/icons/${PLAYER}`)).toBe(true);
+});
+
 test('without a provider the remote retains generic keys and app launching', async ({ page }) => {
   const data = fixtures();
   data.resources[TV_A].integration = integration(TV_A, false);
@@ -216,6 +228,8 @@ test('installed apps are per TV and unavailable apps cannot launch', async ({ pa
   await install(page, data);
   await page.goto(`/d/${TV_A}`);
   await destination(page, /^Apps(?: & services)?$/).click();
+  const more = page.getByRole('region', { name: 'Apps and services', exact: true }).getByRole('button', { name: /View more/i });
+  if (await more.count()) await more.click();
   await expect(page.getByRole('button', { name: /Family unavailable app/ })).toBeDisabled();
   await page.getByRole('button', { name: /Family player/ }).click();
   await expect.poll(() => data.commands.length).toBe(1);
@@ -460,9 +474,32 @@ for (const viewport of [{ width: 360, height: 640 }, { width: 390, height: 844 }
     for (const selected of ['Controls', 'Apps', 'Guide', 'Playing']) {
       await destination(page, selected).click();
       await expect(destination(page, selected)).toHaveAttribute('aria-selected', 'true');
-      const text = await nav.innerText();
+      // Labels stay mounted while spring widths animate. Assess the settled visual
+      // result rather than requiring conditional DOM removal, which causes jumps.
+      await expect.poll(() => destination(page, selected).evaluate((element) => {
+        const text = [...element.querySelectorAll('span')].find((node) => node.textContent === element.getAttribute('aria-label'));
+        return text ? text.getBoundingClientRect().width : 0;
+      })).toBeGreaterThan(10);
       for (const label of ['Controls', 'Apps', 'Guide', 'Playing']) {
-        expect.soft(text.includes(label), `${label} visible while ${selected} selected`).toBe(label === selected);
+        await expect.poll(() => destination(page, label).evaluate((element, name) => {
+          const nodes = [...element.querySelectorAll('span')].filter((node) => node.textContent === name);
+          return nodes.some((node) => {
+            const rect = node.getBoundingClientRect();
+            let left = rect.left;
+            let right = rect.right;
+            let opacity = 1;
+            for (let parent = node; parent && parent !== element.parentElement; parent = parent.parentElement) {
+              const css = getComputedStyle(parent);
+              opacity *= Number(css.opacity);
+              if (/hidden|clip/.test(css.overflowX)) {
+                const clip = parent.getBoundingClientRect();
+                left = Math.max(left, clip.left);
+                right = Math.min(right, clip.right);
+              }
+            }
+            return right - left > 2 && opacity > .1;
+          });
+        }, label), { message: `${label} visually expanded while ${selected} selected` }).toBe(label === selected);
         await expect(destination(page, label)).toBeVisible();
       }
     }
@@ -558,7 +595,7 @@ for (const selected of ['Apps', 'Guide']) {
   test(`${selected} content scrolls independently of the compact chrome and core keys`, async ({ page }) => {
     const data = fixtures();
     const resources = data.resources[TV_A];
-    resources.catalog.items = Array.from({ length: 70 }, (_, i) => ({ ...resources.catalog.items[0], id: `app-${i}`, name: `Fixture app ${i}` }));
+    resources.catalog.items = Array.from({ length: 70 }, (_, i) => ({ ...resources.catalog.items[0], id: `app-${i}`, name: `Fixture app ${i}`, package: `org.example.app${i}` }));
     resources.guide.channels = Array.from({ length: 70 }, (_, i) => ({ ...resources.guide.channels[0], id: `channel-${i}`, name: `Fixture channel ${i}`, number: i + 1 }));
     await install(page, data);
     await page.goto(`/d/${TV_A}`);
@@ -567,6 +604,7 @@ for (const selected of ['Apps', 'Guide']) {
     await expect(heading).toBeVisible();
     await expect(selected === 'Apps' ? page.getByRole('button', { name: 'Open Fixture app 0', exact: true })
       : page.getByText('Family programme', { exact: true }).first()).toBeVisible();
+    if (selected === 'Apps') await page.getByRole('button', { name: /View more/i }).click();
     await frames(page);
     const fixed = [page.getByRole('banner'), page.getByRole('tablist', { name: 'Remote destination' }), page.getByRole('button', { name: 'Home', exact: true })];
     const before = await Promise.all(fixed.map((item) => item.boundingBox()));
@@ -600,4 +638,261 @@ test('generic and unpaired TVs keep compact navigation and an accessible repair 
   await expect(page.getByRole('button', { name: 'Pair this television', exact: true })).toBeInViewport({ ratio: 1 });
   await expect(page.getByRole('combobox', { name: 'Control mode', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
+/** Catalog fixture with deliberately unsorted usage, package duplication and custom artwork. */
+function rankedCatalog(data) {
+  const items = Array.from({ length: 9 }, (_, i) => ({
+    id: `rank-${i}`, name: `Ranked app ${i}`, kind: 'app', package: `org.example.rank${i}`,
+    icon_url: i === 8 ? '/api/icons/custom-artwork' : null, usage_count: i + 1,
+    available: true, action: { type: 'launch', item_id: `rank-${i}` },
+  }));
+  items.push({ ...items[8], id: 'rank-service', name: 'Ranked service', kind: 'service', action: { type: 'launch', item_id: 'rank-service' } });
+  data.resources[TV_A].catalog.items = items;
+}
+
+test('TV usage ranking produces six unique shortcuts and explicit View more/less', async ({ page }) => {
+  const data = fixtures();
+  rankedCatalog(data);
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await destination(page, 'Apps').click();
+  const apps = page.getByRole('region', { name: 'Apps and services', exact: true });
+  const tiles = apps.getByRole('button', { name: /^Open / });
+  await expect(tiles).toHaveCount(6);
+  expect(await tiles.allTextContents()).toEqual(expect.arrayContaining([expect.stringContaining('Ranked service')]));
+  expect((await tiles.allTextContents()).map((s) => /Ranked (?:app \d|service)/.exec(s)?.[0])).toEqual([
+    'Ranked service', 'Ranked app 7', 'Ranked app 6', 'Ranked app 5', 'Ranked app 4', 'Ranked app 3',
+  ]);
+  await expect(apps.getByRole('button', { name: 'Open Ranked app 8', exact: true })).toHaveCount(0);
+  await expect(apps.getByRole('button', { name: 'Open Ranked service', exact: true }).locator('img')).toHaveAttribute('src', '/api/icons/custom-artwork');
+  await apps.getByRole('button', { name: /View more/i }).click();
+  await expect(tiles).toHaveCount(9);
+  await apps.getByRole('button', { name: 'Open Ranked app 0', exact: true }).click();
+  await expect.poll(() => data.commands.length).toBe(1);
+  expect(data.commands[0]).toMatchObject({ device_id: TV_A, action: 'launch', item_id: 'rank-0', profile_id: 'family' });
+  await apps.getByRole('button', { name: /View less/i }).click();
+  await expect(tiles).toHaveCount(6);
+});
+
+test('older catalogs without usage remain honest and browsing resets for another TV', async ({ page }) => {
+  const data = fixtures();
+  rankedCatalog(data);
+  data.resources[TV_A].catalog.items = data.resources[TV_A].catalog.items.slice(0, 9).map(({ usage_count, ...item }) => item);
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await destination(page, 'Apps').click();
+  const apps = page.getByRole('region', { name: 'Apps and services', exact: true });
+  await expect(apps.getByRole('button', { name: /^Open / })).toHaveCount(6);
+  await expect(apps.getByText(/recent|frequent/i)).toHaveCount(0);
+  await apps.getByRole('button', { name: /View more/i }).click();
+  await expect(apps.getByRole('button', { name: /^Open / })).toHaveCount(9);
+  await selectTv(page, 'Living Room TV', 'Bedroom TV');
+  await destination(page, 'Apps').click();
+  await expect(page.getByRole('button', { name: 'Open Bedroom player', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Open Ranked/ })).toHaveCount(0);
+});
+
+test('selected TV profile picture is visible and a broken image falls back to colored initials', async ({ page }) => {
+  const data = fixtures();
+  data.resources[TV_A].profiles.items[0] = { id: 'family', name: 'Family', color: '#b49bff', image_url: '/api/icons/family-avatar' };
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  const header = page.getByRole('banner');
+  await expect(header.locator('img[src="/api/icons/family-avatar"]')).toBeVisible();
+  const picker = page.getByRole('combobox', { name: 'TV profile', exact: true });
+  await expect(picker).toHaveValue('family');
+  await header.locator('img[src="/api/icons/family-avatar"]').evaluate((image) => image.dispatchEvent(new Event('error')));
+  await expect(header.getByText('F', { exact: true })).toBeVisible();
+  const color = await header.getByText('F', { exact: true }).evaluate((element) => {
+    for (let node = element; node && node.tagName !== 'HEADER'; node = node.parentElement) {
+      if (getComputedStyle(node).backgroundColor === 'rgb(180, 155, 255)') return true;
+    }
+    return false;
+  });
+  expect(color).toBe(true);
+  await picker.selectOption('adult');
+  await expect.poll(() => data.commands.some((c) => c.action === 'set_profile' && c.item_id === 'adult')).toBe(true);
+});
+
+/** Sample destination widths across real animation frames after one user selection. */
+async function tabFrames(page, selected, count = 8) {
+  return page.getByRole('tablist', { name: 'Remote destination' }).evaluate(async (nav, { selected, count }) => {
+    const tabs = [...nav.querySelectorAll('[role="tab"]')];
+    const widths = () => Object.fromEntries(tabs.map((tab) => [tab.getAttribute('aria-label'), tab.getBoundingClientRect().width]));
+    const before = widths();
+    tabs.find((tab) => tab.getAttribute('aria-label') === selected).click();
+    const samples = [];
+    for (let i = 0; i < count; i++) {
+      await new Promise(requestAnimationFrame);
+      samples.push(widths());
+    }
+    return { before, samples };
+  }, { selected, count });
+}
+
+test('destination labels collapse and expand together through intermediate spring frames', async ({ page }) => {
+  const data = fixtures();
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await expect(destination(page, 'Controls')).toHaveAttribute('aria-selected', 'true');
+  await page.waitForTimeout(400);
+  const motion = await tabFrames(page, 'Guide');
+  await expect(destination(page, 'Guide')).toHaveAttribute('aria-selected', 'true');
+  await page.waitForTimeout(650);
+  const final = await destination(page, 'Guide').boundingBox();
+  const oldFinal = await destination(page, 'Controls').boundingBox();
+  expect(motion.samples.some((sample) => sample.Controls < motion.before.Controls - 2 && sample.Controls > oldFinal.width + 2
+    && sample.Guide > motion.before.Guide + 2 && sample.Guide < final.width - 2), 'Old and new labels must both have intermediate widths in the same frame').toBe(true);
+  for (const name of ['Controls', 'Apps', 'Guide', 'Playing']) {
+    const box = await destination(page, name).boundingBox();
+    expect(box.width).toBeGreaterThanOrEqual(43.5);
+    expect(box.height).toBeGreaterThanOrEqual(43.5);
+  }
+  await page.getByRole('tablist', { name: 'Remote destination' }).evaluate((nav) => {
+    for (const name of ['Apps', 'Playing', 'Controls', 'Guide']) nav.querySelector(`[aria-label="${name}"]`).click();
+  });
+  await page.waitForTimeout(650);
+  await expect(destination(page, 'Guide')).toHaveAttribute('aria-selected', 'true');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
+test('reduced-motion tab changes settle immediately and remote commands do not wait for animation', async ({ page }) => {
+  const data = fixtures();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await expect(destination(page, 'Guide')).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(400);
+  const motion = await tabFrames(page, 'Guide', 3);
+  await page.waitForTimeout(600);
+  const final = await destination(page, 'Guide').boundingBox();
+  console.log(JSON.stringify({ reducedMotion: true, motion, finalWidth: final.width }));
+  // Allow React's commit and the browser's next layout pass; reduced motion must
+  // already be final by the third painted frame, with no spring settling tail.
+  expect(motion.samples[2].Guide).toBeCloseTo(final.width, 0);
+  await page.getByRole('button', { name: 'Channel up', exact: true }).click();
+  await expect.poll(() => data.commands.length).toBe(1);
+  expect(data.commands[0]).toMatchObject({ device_id: TV_A, action: 'channel_step', direction: 'up', schedule_revision: 'guide-1' });
+});
+
+/** Give guide artwork, service branding, timezone and interval metadata independent of wall-clock minutes. */
+function visualGuide(data) {
+  const guide = data.resources[TV_A].guide;
+  const now = Date.parse('2026-11-01T20:15:00Z');
+  guide.server_time = new Date(now).toISOString();
+  guide.timezone = 'America/Los_Angeles';
+  const channel = guide.channels[0];
+  Object.assign(channel, { package: PLAYER, icon_url: null, accent_color: '#b20710' });
+  Object.assign(channel.programmes[0], { image_url: '/api/icons/programme-art', start: new Date(now - 15 * 60000).toISOString(), end: new Date(now + 45 * 60000).toISOString() });
+  Object.assign(channel.programmes[1], { image_url: '/api/icons/future-art', start: new Date(now + 45 * 60000).toISOString(), end: new Date(now + 105 * 60000).toISOString() });
+}
+
+for (const width of [390, 1440]) {
+  test(`artwork guide time grid contains horizontal pan and keeps service rail fixed at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const data = fixtures();
+    visualGuide(data);
+    await install(page, data);
+    await page.goto(`/d/${TV_A}`);
+    await destination(page, 'Guide').click();
+    const timeline = page.getByLabel('Guide timeline', { exact: true });
+    await expect(timeline).toBeVisible();
+    await expect(timeline.getByLabel('Current time', { exact: true }).first()).toBeVisible();
+    expect(await timeline.evaluate((element) => [...element.querySelectorAll('*')].some((node) => {
+      const css = getComputedStyle(node);
+      return css.position === 'sticky' && css.top !== 'auto';
+    }))).toBe(true);
+    const programme = page.getByRole('button').filter({ has: page.getByText('Family programme', { exact: true }) });
+    await expect(programme).toBeInViewport({ ratio: .1 });
+    await expect(programme.locator('img[src="/api/icons/programme-art"]')).toBeVisible();
+    const programmeBounds = await programme.boundingBox();
+    expect(programmeBounds.height).toBeLessThanOrEqual(100);
+    expect(programmeBounds.height).toBeGreaterThanOrEqual(44);
+    await expect(timeline.locator('img[src="/api/icons/org.example.player"]')).toBeVisible();
+    await expect(timeline.getByText(/12:00/).first()).toBeVisible();
+    const tune = page.getByRole('button', { name: 'Tune Family recommendations', exact: true });
+    const tuneBounds = await tune.boundingBox();
+    expect(tuneBounds.height).toBeGreaterThanOrEqual(44);
+    expect(tuneBounds.width).toBeGreaterThanOrEqual(44);
+    const service = timeline.getByText('Family recommendations', { exact: true });
+    const before = await service.boundingBox();
+    expect(await service.evaluate((element) => {
+      for (let node = element; node; node = node.parentElement) {
+        const css = getComputedStyle(node);
+        if (css.position === 'sticky' && css.left !== 'auto') return true;
+      }
+      return false;
+    })).toBe(true);
+    expect(await timeline.evaluate((element) => [...element.querySelectorAll('*')].some((node) => {
+      const css = getComputedStyle(node);
+      return css.borderColor.includes('178, 7, 16') || css.backgroundColor.includes('178, 7, 16') || css.color.includes('178, 7, 16') || css.getPropertyValue('--channel-accent').trim() === '#b20710';
+    }))).toBe(true);
+    await timeline.evaluate((element) => { element.scrollLeft = 180; });
+    await frames(page);
+    if (width === 390) expect(await timeline.evaluate((element) => element.scrollLeft)).toBeGreaterThan(100);
+    const after = await service.boundingBox();
+    expect(after.x).toBeCloseTo(before.x, 1);
+    expect(await page.evaluate(() => [scrollX, scrollY])).toEqual([0, 0]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    const fixed = page.getByRole('tablist', { name: 'Remote destination' });
+    await expect(fixed).toBeInViewport({ ratio: 1 });
+  });
+}
+
+test('artwork guide selection expands details without tuning and preserves explicit current-title actions', async ({ page }) => {
+  const data = fixtures();
+  visualGuide(data);
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await destination(page, 'Guide').click();
+  await page.getByText('Family programme', { exact: true }).click();
+  const details = page.getByRole('dialog');
+  await expect(details).toBeVisible();
+  await expect(details.locator('img[src="/api/icons/programme-art"]')).toBeVisible();
+  expect(data.commands).toEqual([]);
+  await expect(details.getByText(/12:00/)).toBeVisible();
+  await details.getByRole('button', { name: 'Tune channel', exact: true }).click();
+  await expect.poll(() => data.commands.length).toBe(1);
+  expect(data.commands[0]).toMatchObject({ device_id: TV_A, action: 'tune', channel_id: `${TV_A}-channel`, schedule_revision: 'guide-1', profile_id: 'family' });
+});
+
+test('future programme details offer explicit Open/Resume without falsely tuning a scheduled title', async ({ page }) => {
+  const data = fixtures();
+  visualGuide(data);
+  await install(page, data, async (route, url) => {
+    if (!url.pathname.endsWith(`/titles/${TV_A}-future-title`)) return false;
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+      id: `${TV_A}-future-title`, title: 'A future title', subtitle: 'Episode details',
+      description: 'A full synopsis for the selected programme.', image_url: '/api/icons/future-art',
+      available: true, actions: ['open', 'resume'],
+    }) });
+    return true;
+  });
+  await page.goto(`/d/${TV_A}`);
+  await destination(page, 'Guide').click();
+  await page.getByText('Family next programme', { exact: true }).click();
+  const details = page.getByRole('dialog');
+  await expect(details.getByText('A full synopsis for the selected programme.', { exact: true })).toBeVisible();
+  await expect(details.getByRole('button', { name: 'Tune channel', exact: true })).toHaveCount(0);
+  await expect(details.getByRole('button', { name: 'Resume on TV', exact: true })).toBeEnabled();
+  expect(data.commands).toEqual([]);
+  await details.getByRole('button', { name: 'Open on TV', exact: true }).click();
+  await expect.poll(() => data.commands.length).toBe(1);
+  expect(data.commands[0]).toMatchObject({ device_id: TV_A, action: 'open', item_id: `${TV_A}-future-title`, profile_id: 'family' });
+});
+
+test('an unavailable current programme cannot tune its channel from the grid or details', async ({ page }) => {
+  const data = fixtures();
+  visualGuide(data);
+  data.resources[TV_A].guide.channels[0].programmes[0].available = false;
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await destination(page, 'Guide').click();
+  await expect(page.getByRole('button', { name: 'Tune Family recommendations', exact: true })).toBeDisabled();
+  await page.getByText('Family programme', { exact: true }).click();
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Tune channel', exact: true })).toBeDisabled();
+  expect(data.commands).toEqual([]);
 });

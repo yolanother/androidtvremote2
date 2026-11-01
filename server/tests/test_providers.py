@@ -4,7 +4,8 @@
 # Behavioral integration tests for optional Android TV Remote launcher providers.
 # Exercises the appliance's HTTP and event surfaces against a fake external provider,
 # proving paired-TV identity, independent device data, bounded provider failures,
-# command authorization and generic-control fallback without any TV or LAN traffic.
+# command authorization, bounded presentation metadata and generic-control fallback
+# without any TV or LAN traffic.
 """Behavioral integration tests for optional launcher provider APIs."""
 
 from __future__ import annotations
@@ -258,6 +259,88 @@ def _refresh(client: TestClient) -> None:
     """Synchronize the external boundary through the registry's public refresh seam."""
     assert client.portal is not None
     client.portal.call(client.app.state.providers.refresh)
+
+
+class PresentationProvider(ProviderStub):
+    """Serve optional generic display fields through the external protocol boundary."""
+
+    def respond(self, request: httpx.Request) -> httpx.Response:
+        """Decorate upstream fixture JSON with TV ranking, service art and profile color.
+
+        :param request: External provider HTTP request from the real appliance.
+        :returns: Fixture response with only the requested resource decorated.
+        """
+        response = super().respond(request)
+        if response.status_code != 200 or request.method != "GET":
+            return response
+        resource = request.url.path.rsplit("/", 1)[-1]
+        body = response.json()
+        if resource == "catalog":
+            body["items"][0]["usage_count"] = 42
+        elif resource == "guide":
+            body["channels"][0].update({
+                "package": "org.example.player", "icon_url": "https://art.test/service.webp",
+                "accent_color": "#b20710", "private_account": "must-be-discarded",
+            })
+        elif resource == "profiles":
+            body["items"][0].update({"color": "#b49bff", "image_url": "https://art.test/avatar.webp"})
+        elif "/titles/" in request.url.path:
+            body["description"] = "A detailed description of the selected programme."
+        return httpx.Response(200, json=body)
+
+
+def test_optional_tv_ranking_and_visual_fields_survive_public_api(
+    tmp_path: Path, fake_remote: Any,
+) -> None:
+    """Generic optional metadata reaches clients without leaking private provider data."""
+    peer = PresentationProvider()
+    with _provider_client(tmp_path, fake_remote, [peer]) as client:
+        device_id = _register(client)
+        _refresh(client)
+        catalog = client.get(f"/api/devices/{device_id}/catalog")
+        assert catalog.status_code == 200
+        assert catalog.json()["items"][0]["usage_count"] == 42
+        profiles = client.get(f"/api/devices/{device_id}/profiles")
+        assert profiles.status_code == 200
+        assert profiles.json()["items"][0]["color"] == "#b49bff"
+        assert profiles.json()["items"][0]["image_url"] == "https://art.test/avatar.webp"
+        guide = client.get(f"/api/devices/{device_id}/guide", params={"from": GUIDE_FROM, "to": GUIDE_TO})
+        assert guide.status_code == 200
+        channel = guide.json()["channels"][0]
+        assert channel["package"] == "org.example.player"
+        assert channel["icon_url"] == "https://art.test/service.webp"
+        assert channel["accent_color"] == "#b20710"
+        assert "private_account" not in channel
+        assert channel["programmes"][0]["start"] == GUIDE_FROM
+        title = client.get(f"/api/devices/{device_id}/titles/title-a")
+        assert title.status_code == 200
+        assert title.json()["description"] == "A detailed description of the selected programme."
+
+
+@pytest.mark.parametrize("usage_count", [-1, 1_000_000_001])
+def test_usage_ranking_is_bounded_at_provider_boundary(
+    tmp_path: Path, fake_remote: Any, usage_count: int,
+) -> None:
+    """Invalid counts cannot become client-visible ranking inputs."""
+    peer = ProviderStub()
+    peer.catalogs[TV_A]["items"][0]["usage_count"] = usage_count
+    with _provider_client(tmp_path, fake_remote, [peer]) as client:
+        device_id = _register(client)
+        _refresh(client)
+        response = client.get(f"/api/devices/{device_id}/catalog")
+        assert response.status_code == 503
+        assert response.json()["error"]["code"] == "provider_unavailable"
+
+
+@pytest.mark.parametrize("color", ["red", "#fff", "url(https://art.test/x)", "#123456;background:red"])
+def test_profile_color_accepts_only_six_digit_hex(color: str) -> None:
+    """Profile presentation colors cannot carry arbitrary CSS declarations."""
+    from pydantic import ValidationError
+
+    from app.providers.models import Profile
+
+    with pytest.raises(ValidationError):
+        Profile.model_validate({"id": "family", "name": "Family", "color": color})
 
 
 def _command(client: TestClient, device_id: str, action: str, **fields: Any) -> httpx.Response:
