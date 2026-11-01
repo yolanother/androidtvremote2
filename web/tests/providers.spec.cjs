@@ -970,6 +970,8 @@ for (const reducedMotion of ['no-preference', 'reduce']) {
     await expect(dialog.getByRole('button', { name: 'Resume on TV', exact: true })).toBeVisible();
     await expect(dialog.locator('img[src="/api/icons/programme-art"]')).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
+    // Playwright visibility includes opacity:0; this case measures exit after entry.
+    await expect.poll(() => dialog.evaluate((element) => Number(getComputedStyle(element).opacity))).toBeGreaterThan(.99);
     const exit = await dialog.evaluate(async (element) => {
       const sample = () => {
         const rect = element.getBoundingClientRect();
