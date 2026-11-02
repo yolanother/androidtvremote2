@@ -59,6 +59,80 @@ async function tabToNativeControl(page, control) {
   throw new Error('Native control was not reachable through keyboard Tab navigation');
 }
 
+for (const kind of ['app', 'service']) {
+  test(`desktop shortcuts follow pointer launching a provider ${kind} without relaunching it`, async ({ page }) => {
+    const data = fixtures();
+    const item = data.resources[TV_A].catalog.items[0];
+    item.kind = kind;
+    await openKeyboardRemote(page, data);
+    await destination(page, 'Apps').click();
+    await page.getByRole('button', { name: 'Open Family player', exact: true }).click();
+    await expect.poll(() => data.commands.length).toBe(1);
+    expect(data.commands[0]).toMatchObject({ device_id: TV_A, action: 'launch', item_id: item.id });
+    await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter'); await page.keyboard.press('Space');
+    await expect.poll(() => data.keys).toEqual([
+      { device_id: TV_A, key: 'DPAD_UP' }, { device_id: TV_A, key: 'DPAD_CENTER' }, { device_id: TV_A, key: 'MEDIA_PLAY_PAUSE' },
+    ]);
+    expect(data.commands).toHaveLength(1);
+  });
+}
+
+test('desktop shortcuts follow pointer launching a generic app without relaunching it', async ({ page }) => {
+  const data = fixtures();
+  data.resources[TV_A].integration = integration(TV_A, false);
+  await openKeyboardRemote(page, data);
+  await destination(page, 'Apps').click();
+  await page.getByRole('button', { name: /^Generic player(?:\s|$)/ }).click();
+  await expect.poll(() => data.genericLaunches.length).toBe(1);
+  expect(data.genericLaunches[0]).toMatchObject({ device_id: TV_A, app: PLAYER });
+  await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter'); await page.keyboard.press('Space');
+  await expect.poll(() => data.keys).toEqual([
+    { device_id: TV_A, key: 'DPAD_UP' }, { device_id: TV_A, key: 'DPAD_CENTER' }, { device_id: TV_A, key: 'MEDIA_PLAY_PAUSE' },
+  ]);
+  expect(data.genericLaunches).toHaveLength(1);
+});
+
+for (const [name, command] of [
+  ['Tune Family recommendations', { action: 'tune', channel_id: `${TV_A}-channel` }],
+  ['Channel up', { action: 'channel_step', direction: 'up' }],
+  ['Channel down', { action: 'channel_step', direction: 'down' }],
+]) {
+  test(`desktop shortcuts follow pointer ${name} without repeating the guide action`, async ({ page }) => {
+    const data = await openKeyboardRemote(page);
+    await destination(page, 'Guide').click();
+    await page.getByRole('button', { name, exact: true }).click();
+    await expect.poll(() => data.commands.length).toBe(1);
+    expect(data.commands[0]).toMatchObject({ device_id: TV_A, ...command });
+    await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter'); await page.keyboard.press('Space');
+    await expect.poll(() => data.keys).toEqual([
+      { device_id: TV_A, key: 'DPAD_UP' }, { device_id: TV_A, key: 'DPAD_CENTER' }, { device_id: TV_A, key: 'MEDIA_PLAY_PAUSE' },
+    ]);
+    expect(data.commands).toHaveLength(1);
+  });
+}
+
+for (const surface of ['provider app', 'generic app', 'guide tune']) {
+  for (const physical of ['Enter', 'Space']) {
+    test(`native Tab ${physical} activates ${surface} once without sending TV shortcuts`, async ({ page }) => {
+      const data = fixtures();
+      if (surface === 'generic app') data.resources[TV_A].integration = integration(TV_A, false);
+      await openKeyboardRemote(page, data);
+      await destination(page, surface === 'guide tune' ? 'Guide' : 'Apps').click();
+      const button = surface === 'guide tune'
+        ? page.getByRole('button', { name: 'Tune Family recommendations', exact: true })
+        : surface === 'generic app'
+          ? page.getByRole('button', { name: /^Generic player(?:\s|$)/ })
+          : page.getByRole('button', { name: 'Open Family player', exact: true });
+      await tabToNativeControl(page, button);
+      await page.keyboard.press(physical);
+      await expect.poll(() => surface === 'generic app' ? data.genericLaunches.length : data.commands.length).toBe(1);
+      expect(data.keys).toEqual([]);
+      if (surface === 'generic app') expect(data.genericLaunches[0]).toMatchObject({ device_id: TV_A, app: PLAYER });
+      else expect(data.commands[0]).toMatchObject({ device_id: TV_A, action: surface === 'guide tune' ? 'tune' : 'launch' });
+    });
+  }
+}
+
 test('desktop pointer tab selection keeps all documented TV shortcuts scoped and prevents page scrolling', async ({ page }) => {
   const data = await openKeyboardRemote(page);
   const bindings = [
