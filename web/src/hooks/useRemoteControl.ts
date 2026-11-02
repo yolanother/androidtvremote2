@@ -211,11 +211,13 @@ export function useKeyboardControl(control: RemoteControl, enabled: boolean): vo
     if (!enabled || disabled) return
 
     let heldKey: string | null = null
+    let heldPhysicalKey: string | null = null
     let delay: ReturnType<typeof setTimeout> | undefined
     let repeat: ReturnType<typeof setInterval> | undefined
 
     const stop = () => {
       heldKey = null
+      heldPhysicalKey = null
       if (delay) clearTimeout(delay)
       if (repeat) clearInterval(repeat)
       delay = undefined
@@ -227,6 +229,8 @@ export function useKeyboardControl(control: RemoteControl, enabled: boolean): vo
       || (target instanceof Element && !!target.closest('button, a[href], [role="tab"], select, dialog, [role="region"][tabindex]'))
 
     const onKeyDown = (event: KeyboardEvent) => {
+      // Modifier shortcuts belong to the browser, including while a TV key was held.
+      if (event.ctrlKey || event.metaKey || event.altKey) { stop(); return }
       if (ownsKeyboard(event.target)) return
       const key = keyForEvent(event)
       if (!key) return
@@ -235,6 +239,7 @@ export function useKeyboardControl(control: RemoteControl, enabled: boolean): vo
       if (event.repeat || heldKey === key) return
       stop()
       heldKey = key
+      heldPhysicalKey = event.code || event.key
       send(key)
       if ([KEYS.up, KEYS.down, KEYS.left, KEYS.right, KEYS.volumeUp, KEYS.volumeDown].some((repeatable) => repeatable === key)) {
         delay = setTimeout(() => {
@@ -244,7 +249,8 @@ export function useKeyboardControl(control: RemoteControl, enabled: boolean): vo
     }
 
     const onKeyUp = (event: KeyboardEvent) => {
-      if (keyForEvent(event) === heldKey) stop()
+      // A modifier pressed during the hold must not hide the physical key release.
+      if ((event.code || event.key) === heldPhysicalKey) stop()
     }
 
     /** A newly focused editor, dialog or browser control ends the old TV hold. */

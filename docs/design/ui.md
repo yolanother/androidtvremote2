@@ -221,7 +221,9 @@ button.
   delay; OS `keydown` auto-repeat is ignored. Enter, play/pause, back, home, mute and
   track shortcuts fire once per physical press, so holding Space cannot rapidly toggle
   playback. Key release, window blur, a hidden document, selected-TV changes and focus
-  moving into browser-owned UI stop any held TV shortcut.
+  moving into browser-owned UI stop any held TV shortcut. Pressing a browser modifier
+  also ends the hold, and releasing the original physical key stops it even if a
+  modifier is still pressed.
 
 - `prefers-reduced-motion` removes the press-flash animation; the colour change stays.
 
