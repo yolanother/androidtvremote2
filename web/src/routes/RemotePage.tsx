@@ -94,6 +94,8 @@ export function RemotePage() {
 
   /** Keep pointer-used TV controls from parking focus on a native button or tab. */
   const retainRemoteKeyboard = (event: React.PointerEvent<HTMLDivElement>) => {
+    // Motion emits pointer events with no pointer type for native keyboard presses.
+    if (!event.pointerType) return
     if (!keyboardRemote || event.button !== 0 || (!desktop && event.pointerType === 'touch')) return
     const target = event.target
     if (!(target instanceof Element) || isEditableTarget(target)) return
