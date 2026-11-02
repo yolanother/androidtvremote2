@@ -214,7 +214,7 @@ button.
   remote-keyboard context, so the next arrow, Enter or Space press controls the TV
   without clicking blank space first. Mouse/pen use works in compact desktop windows
   too. Keyboard focus reached with Tab remains native: Enter/Space activates the
-  focused button, and editors, dropdowns, dialogs and the guide timeline retain their
+  focused button or link, and editors, dropdowns, dialogs and the guide timeline retain their
   own typing and navigation. Ctrl/Meta/Alt browser shortcuts are left alone.
 
   Held direction and volume keys repeat at the same 120ms cadence after the initial

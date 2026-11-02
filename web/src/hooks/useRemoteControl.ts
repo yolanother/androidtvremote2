@@ -224,7 +224,7 @@ export function useKeyboardControl(control: RemoteControl, enabled: boolean): vo
 
     /** Editable and focusable browser UI owns its keys instead of the television. */
     const ownsKeyboard = (target: EventTarget | null) => isEditableTarget(target)
-      || (target instanceof Element && !!target.closest('button, [role="tab"], select, dialog, [role="region"][tabindex]'))
+      || (target instanceof Element && !!target.closest('button, a[href], [role="tab"], select, dialog, [role="region"][tabindex]'))
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (ownsKeyboard(event.target)) return
