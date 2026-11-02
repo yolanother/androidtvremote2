@@ -35,8 +35,9 @@ Narrower windows and short landscape phones retain the dedicated Controls tab.
 
 Desktop keyboard remote shortcuts remain available while browsing, except when
 focus belongs to an editable field, native control, modal or focusable guide
-timeline. Pointer use of remote keys, the input pad or content tabs retains remote
-keyboard context: arrows navigate the TV, Enter selects, Space/`k` toggles playback,
+timeline. Pointer use of remote keys, app/service launch, channel tune/step, the input
+pad or content tabs retains remote keyboard context: arrows navigate the TV, Enter
+selects, Space/`k` toggles playback,
 Escape/Backspace goes back, `h` goes Home, `m` mutes, `+`/`-` changes volume, and
 `[`/`]` skips tracks. Tab-reached controls keep native Enter/Space activation.
 Only direction and volume shortcuts repeat while held; the other actions execute

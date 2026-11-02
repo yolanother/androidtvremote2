@@ -5,6 +5,7 @@
  * Television-specific app and service launcher for optional providers. Shows a compact
  * usage-ranked shortlist with real appliance-served package icons, expands the full
  * inventory on request, and submits opaque actions through the scoped command hook.
+ * Launch tiles preserve desktop remote keyboard control after pointer activation.
  */
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -56,6 +57,7 @@ export function ProviderApps({ remote, deviceName }: { remote: RemoteIntegration
               transition={transition}
               whileTap={reduced ? undefined : { scale: 0.96 }}
               type="button"
+              data-remote-command
               aria-label={`Open ${item.name}`}
               disabled={!item.available || remote.pending}
               onClick={() => void remote.send({ action: 'launch', item_id: item.action.item_id })}

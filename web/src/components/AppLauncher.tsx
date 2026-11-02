@@ -8,7 +8,8 @@
  * tile the television reports as foreground — resolved from `current_app` or, when the TV
  * reports the native-app sentinel, from the Cast receiver's display name — so the launcher
  * doubles as a readout of what is on screen. An icon that fails to load degrades to the
- * initials-over-a-derived-hue tile rather than leaving a gap.
+ * initials-over-a-derived-hue tile rather than leaving a gap. Launch tiles identify
+ * direct TV commands so pointer launch preserves desktop remote keyboard control.
  */
 import { useState } from 'react'
 import { Check, Loader2 } from 'lucide-react'
@@ -70,6 +71,7 @@ export function AppLauncher({
             <button
               key={app.id}
               type="button"
+              data-remote-command
               disabled={disabled}
               aria-current={isCurrent ? 'true' : undefined}
               onClick={() => void open(app)}

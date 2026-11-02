@@ -7,7 +7,8 @@
  * anchored to the current half-hour so the current title remains readable on phones,
  * then opens details before explicit TV actions. Detail content remains stable while
  * its sheet exits, and pending detail fetches are cancelled on dismissal. Recommendation channels resume/open
- * their current title and never imply a live-time seek.
+ * their current title and never imply a live-time seek. Direct tune/channel commands
+ * preserve desktop remote keyboard control while timeline browsing keeps native focus.
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { motion } from 'motion/react'
@@ -82,8 +83,8 @@ export function Guide({ deviceId, deviceName, remote }: { deviceId: string; devi
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0"><h2 className="text-lg font-semibold">TV guide</h2><p className="text-muted-foreground mt-0.5 truncate text-xs">{deviceName}{guide ? ` · ${guide.timezone}` : ''}</p></div>
         {capabilities.includes('channel_step') && <div className="flex gap-1.5">
-          <Btn variant="secondary" aria-label="Channel down" disabled={!hasChannels || remote.pending} onClick={() => void remote.send({ action: 'channel_step', direction: 'down', schedule_revision: guide?.revision })} className="w-11 px-0"><ChevronDown aria-hidden className="size-4" /></Btn>
-          <Btn variant="secondary" aria-label="Channel up" disabled={!hasChannels || remote.pending} onClick={() => void remote.send({ action: 'channel_step', direction: 'up', schedule_revision: guide?.revision })} className="w-11 px-0"><ChevronUp aria-hidden className="size-4" /></Btn>
+          <Btn data-remote-command variant="secondary" aria-label="Channel down" disabled={!hasChannels || remote.pending} onClick={() => void remote.send({ action: 'channel_step', direction: 'down', schedule_revision: guide?.revision })} className="w-11 px-0"><ChevronDown aria-hidden className="size-4" /></Btn>
+          <Btn data-remote-command variant="secondary" aria-label="Channel up" disabled={!hasChannels || remote.pending} onClick={() => void remote.send({ action: 'channel_step', direction: 'up', schedule_revision: guide?.revision })} className="w-11 px-0"><ChevronUp aria-hidden className="size-4" /></Btn>
         </div>}
       </div>
       {!guide ? <p role="status" className="text-muted-foreground py-8 text-sm">{remote.error ? 'This TV’s guide could not be loaded.' : 'Loading this TV’s guide…'}</p>
@@ -107,7 +108,7 @@ export function Guide({ deviceId, deviceName, remote }: { deviceId: string; devi
                 const accent = serviceColor(channel)
                 return <div key={channel.id} className="tv-guide-row flex border-b last:border-b-0" style={{ '--service-color': accent } as CSSProperties}>
                   <div className="tv-guide-channel bg-card sticky left-0 z-20 shrink-0 border-r">
-                    <button type="button" aria-label={`Tune ${channel.name}`} disabled={!capabilities.includes('tune') || !active?.available || remote.pending} onClick={() => tune(channel)}
+                    <button type="button" data-remote-command aria-label={`Tune ${channel.name}`} disabled={!capabilities.includes('tune') || !active?.available || remote.pending} onClick={() => tune(channel)}
                       className="hover:bg-accent flex h-full w-full cursor-pointer flex-col items-start justify-center gap-1 border-l-[3px] px-2 text-left disabled:cursor-default" style={{ borderLeftColor: accent }}>
                       <span className="flex w-full items-center gap-1.5"><AppIcon iconUrl={channel.icon_url || (channel.package ? `/api/icons/${encodeURIComponent(channel.package)}` : null)} name={channel.name} alt="" className="!w-6 !rounded-md" size={48} /><span className="text-muted-foreground text-[0.625rem] tabular-nums">{String(channel.number).padStart(2, '0')}</span><Play aria-hidden className="ml-auto size-3" /></span>
                       <span className="line-clamp-2 w-full text-[0.6875rem] leading-tight font-semibold" title={channel.name}>{channel.name}</span>

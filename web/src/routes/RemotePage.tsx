@@ -15,7 +15,7 @@
  * and installed-app updates cannot push the input surface or core keys off screen.
  * Roomy desktops use Playing as the default content destination and keep the selected
  * input surface mounted beside every content pane, without replacing mobile preferences.
- * Pointer interaction with remote keys, surfaces and destination tabs retains the remote
+ * Pointer interaction with TV commands, input surfaces and destination tabs retains the remote
  * keyboard context, while Tab navigation, editors and browsing controls keep native focus.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react'
@@ -97,8 +97,10 @@ export function RemotePage() {
     if (!keyboardRemote || event.button !== 0 || (!desktop && event.pointerType === 'touch')) return
     const target = event.target
     if (!(target instanceof Element) || isEditableTarget(target)) return
-    if (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), dialog, [role="region"][tabindex]')) return
-    if (!target.closest('.key, [data-remote-surface], [role="tab"]')) return
+    if (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), dialog')) return
+    const command = target.closest('[data-remote-command]')
+    if (!command && target.closest('[role="region"][tabindex]')) return
+    if (!command && !target.closest('.key, [data-remote-surface], [role="tab"]')) return
     event.preventDefault()
     event.currentTarget.focus({ preventScroll: true })
   }

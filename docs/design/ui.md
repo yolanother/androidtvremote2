@@ -210,8 +210,9 @@ button.
   | `m` | Mute |
   | `[` / `]` | Previous / next |
 
-  Pointer use of a remote key, input pad or destination tab leaves the desktop in
-  remote-keyboard context, so the next arrow, Enter or Space press controls the TV
+  Pointer use of a remote key, app/service launch, channel tune/step, input pad or
+  destination tab leaves the desktop in remote-keyboard context, so the next arrow,
+  Enter or Space press controls the TV
   without clicking blank space first. Mouse/pen use works in compact desktop windows
   too. Keyboard focus reached with Tab remains native: Enter/Space activates the
   focused button or link, and editors, dropdowns, dialogs and the guide timeline retain their
