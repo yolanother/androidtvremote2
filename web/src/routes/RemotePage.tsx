@@ -15,6 +15,8 @@
  * and installed-app updates cannot push the input surface or core keys off screen.
  * Roomy desktops use Playing as the default content destination and keep the selected
  * input surface mounted beside every content pane, without replacing mobile preferences.
+ * Pointer interaction with remote keys, surfaces and destination tabs retains the remote
+ * keyboard context, while Tab navigation, editors and browsing controls keep native focus.
  */
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { motion } from 'motion/react'
@@ -37,6 +39,7 @@ import { Touchpad } from '@/components/Touchpad'
 import { useKeyboardControl, useRemoteControl } from '@/hooks/useRemoteControl'
 import { useVisibleViewportHeight } from '@/hooks/useVisibleViewportHeight'
 import { useIntegration } from '@/hooks/useIntegration'
+import { isEditableTarget } from '@/lib/keys'
 import { setLastDevice, useSurface, type Surface } from '@/lib/prefs'
 import { cn } from '@/lib/utils'
 import { useOrganicMotion } from '@/lib/motion'
@@ -84,9 +87,21 @@ export function RemotePage() {
   const ModeIcon = activeMode === 'touch' ? Hand : activeMode === 'text' ? Keyboard : Move
   const destination = contentSurface === 'apps' ? 'apps' : contentSurface === 'media' ? 'media'
     : contentSurface === 'guide' && guideAvailable ? 'guide' : desktop ? 'media' : 'controls'
+  const keyboardRemote = desktop || destination === 'controls'
   // Modal dialogs own the keyboard while they are open, or Escape would send BACK to the
   // TV instead of closing them.
-  useKeyboardControl(control, !pairingOpen && !addOpen && (desktop || destination === 'controls'))
+  useKeyboardControl(control, !pairingOpen && !addOpen && keyboardRemote)
+
+  /** Keep pointer-used TV controls from parking focus on a native button or tab. */
+  const retainRemoteKeyboard = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!keyboardRemote || event.button !== 0 || (!desktop && event.pointerType === 'touch')) return
+    const target = event.target
+    if (!(target instanceof Element) || isEditableTarget(target)) return
+    if (target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), dialog, [role="region"][tabindex]')) return
+    if (!target.closest('.key, [data-remote-surface], [role="tab"]')) return
+    event.preventDefault()
+    event.currentTarget.focus({ preventScroll: true })
+  }
 
   useEffect(() => {
     if (deviceId) setLastDevice(deviceId)
@@ -110,7 +125,8 @@ export function RemotePage() {
   const unpaired = device.state.connection === 'unpaired' || !device.paired
 
   return (
-    <div className="tv-remote flex min-w-0 flex-col overflow-hidden md:p-4 xl:p-6"
+    <div tabIndex={-1} onPointerDownCapture={retainRemoteKeyboard}
+      className="tv-remote flex min-w-0 flex-col overflow-hidden outline-none md:p-4 xl:p-6"
       style={{ height: `calc(${viewportHeight}px - var(--pwa-update-height, 0px))` }}>
       <div className="tv-remote-frame bg-background mx-auto flex min-h-0 w-full max-w-[1700px] flex-1 flex-col md:rounded-3xl md:border md:p-4">
       <RemoteHeader

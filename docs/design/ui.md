@@ -210,9 +210,18 @@ button.
   | `m` | Mute |
   | `[` / `]` | Previous / next |
 
-  Bindings are suppressed while focus is in a text field, so the text surface still types
-  normally. Held keys repeat at the same 120ms cadence, and `keydown` auto-repeat from the
-  OS is ignored in favour of our own timer so the rate is consistent across platforms.
+  Pointer use of a remote key, input pad or destination tab leaves the desktop in
+  remote-keyboard context, so the next arrow, Enter or Space press controls the TV
+  without clicking blank space first. Mouse/pen use works in compact desktop windows
+  too. Keyboard focus reached with Tab remains native: Enter/Space activates the
+  focused button, and editors, dropdowns, dialogs and the guide timeline retain their
+  own typing and navigation. Ctrl/Meta/Alt browser shortcuts are left alone.
+
+  Held direction and volume keys repeat at the same 120ms cadence after the initial
+  delay; OS `keydown` auto-repeat is ignored. Enter, play/pause, back, home, mute and
+  track shortcuts fire once per physical press, so holding Space cannot rapidly toggle
+  playback. Key release, window blur, a hidden document, selected-TV changes and focus
+  moving into browser-owned UI stop any held TV shortcut.
 
 - `prefers-reduced-motion` removes the press-flash animation; the colour change stays.
 

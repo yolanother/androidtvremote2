@@ -9,6 +9,8 @@
  * Every failure is captured as a displayable message rather than thrown at the component.
  * Keyboard bindings leave editable fields, native controls, dialogs and focusable
  * browsing regions in charge of their own input when desktop controls remain available.
+ * Only directional and volume shortcuts repeat; media/select actions fire once per
+ * physical press, and held shortcuts stop when the page or keyboard context changes.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -220,10 +222,12 @@ export function useKeyboardControl(control: RemoteControl, enabled: boolean): vo
       repeat = undefined
     }
 
+    /** Editable and focusable browser UI owns its keys instead of the television. */
+    const ownsKeyboard = (target: EventTarget | null) => isEditableTarget(target)
+      || (target instanceof Element && !!target.closest('button, [role="tab"], select, dialog, [role="region"][tabindex]'))
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isEditableTarget(event.target)) return
-      // Native controls own their keyboard activation and browsing navigation.
-      if (event.target instanceof Element && event.target.closest('button, [role="tab"], select, dialog, [role="region"][tabindex]')) return
+      if (ownsKeyboard(event.target)) return
       const key = keyForEvent(event)
       if (!key) return
       event.preventDefault()
@@ -232,23 +236,34 @@ export function useKeyboardControl(control: RemoteControl, enabled: boolean): vo
       stop()
       heldKey = key
       send(key)
-      delay = setTimeout(() => {
-        repeat = setInterval(() => send(key), REPEAT_INTERVAL_MS)
-      }, REPEAT_DELAY_MS)
+      if ([KEYS.up, KEYS.down, KEYS.left, KEYS.right, KEYS.volumeUp, KEYS.volumeDown].some((repeatable) => repeatable === key)) {
+        delay = setTimeout(() => {
+          repeat = setInterval(() => send(key), REPEAT_INTERVAL_MS)
+        }, REPEAT_DELAY_MS)
+      }
     }
 
     const onKeyUp = (event: KeyboardEvent) => {
       if (keyForEvent(event) === heldKey) stop()
     }
 
+    /** A newly focused editor, dialog or browser control ends the old TV hold. */
+    const onFocusIn = (event: FocusEvent) => { if (ownsKeyboard(event.target)) stop() }
+    /** Hidden tabs must not continue sending a held television command. */
+    const onVisibilityChange = () => { if (document.hidden) stop() }
+
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
     window.addEventListener('blur', stop)
+    window.addEventListener('focusin', onFocusIn)
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       stop()
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('blur', stop)
+      window.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [enabled, disabled, send])
 }
