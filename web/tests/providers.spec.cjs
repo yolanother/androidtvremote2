@@ -15,6 +15,8 @@
  * clipping and overlapping hit regions cannot masquerade as a non-scrolling layout.
  * Also verifies roomy desktop content defaults and persistent right-hand input
  * controls without changing compact phone or folded-screen behavior.
+ * Exercises desktop hardware shortcuts after pointer use, single-shot media/select
+ * keys, held navigation release boundaries and native editing/navigation ownership.
  */
 const { test, expect } = require('@playwright/test');
 
@@ -22,6 +24,282 @@ const TV_A = 'aabbccddeeff';
 const TV_B = '112233445566';
 const PLAYER = 'org.example.player';
 const CAPS = ['catalog', 'browse', 'guide', 'tune', 'channel_step', 'playback', 'profiles'];
+
+test('desktop keyboard shortcuts remain active after a pointer selects a content tab', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const data = fixtures(); await install(page, data); await page.goto(`/d/${TV_A}`);
+  await expect(destination(page, 'Apps')).toBeVisible({ timeout: 10000 });
+  await destination(page, 'Apps').click();
+  await expect(destination(page, 'Apps')).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(() => data.keys).toEqual([{ device_id: TV_A, key: 'DPAD_UP' }]);
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Space');
+  await expect.poll(() => data.keys.map((item) => item.key)).toEqual(['DPAD_UP', 'DPAD_CENTER', 'MEDIA_PLAY_PAUSE']);
+  expect(data.keys.every((item) => item.device_id === TV_A)).toBe(true);
+  await expect(destination(page, 'Apps')).toHaveAttribute('aria-selected', 'true');
+  expect(data.commands).toEqual([]);
+});
+
+/** Open a paired synthetic desktop remote without moving focus from its initial context. */
+async function openKeyboardRemote(page, data = fixtures(), viewport = { width: 1440, height: 900 }) {
+  await page.setViewportSize(viewport);
+  await install(page, data);
+  await page.goto(`/d/${TV_A}`);
+  await expect(page.getByRole('combobox', { name: 'Control mode', exact: true })).toBeVisible({ timeout: 10000 });
+  return data;
+}
+
+/** Reach a real native control through Tab rather than assigning focus programmatically. */
+async function tabToNativeControl(page, control) {
+  for (let step = 0; step < 40; step++) {
+    await page.keyboard.press('Tab');
+    if (await control.evaluate((element) => element === document.activeElement)) return;
+  }
+  throw new Error('Native control was not reachable through keyboard Tab navigation');
+}
+
+test('desktop pointer tab selection keeps all documented TV shortcuts scoped and prevents page scrolling', async ({ page }) => {
+  const data = await openKeyboardRemote(page);
+  const bindings = [
+    ['ArrowUp', 'DPAD_UP'], ['ArrowDown', 'DPAD_DOWN'], ['ArrowLeft', 'DPAD_LEFT'], ['ArrowRight', 'DPAD_RIGHT'],
+    ['Enter', 'DPAD_CENTER'], ['Space', 'MEDIA_PLAY_PAUSE'], ['k', 'MEDIA_PLAY_PAUSE'],
+    ['Escape', 'BACK'], ['Backspace', 'BACK'], ['h', 'HOME'], ['m', 'MUTE'],
+    ['Shift+Equal', 'VOLUME_UP'], ['Equal', 'VOLUME_UP'], ['Minus', 'VOLUME_DOWN'], ['Shift+Minus', 'VOLUME_DOWN'],
+    ['[', 'MEDIA_PREVIOUS'], [']', 'MEDIA_NEXT'],
+  ];
+  for (const pane of ['Playing', 'Apps', 'Guide']) {
+    await expect(destination(page, pane)).toBeVisible({ timeout: 10000 });
+    await destination(page, pane).click();
+    const start = data.keys.length;
+    const before = await page.evaluate(() => [scrollX, scrollY]);
+    for (const [physical] of bindings) await page.keyboard.press(physical);
+    await expect.poll(() => data.keys.slice(start).map((item) => item.key)).toEqual(bindings.map(([, key]) => key));
+    expect(data.keys.slice(start).every((item) => item.device_id === TV_A)).toBe(true);
+    expect(await page.evaluate(() => [scrollX, scrollY])).toEqual(before);
+    await expect(destination(page, pane)).toHaveAttribute('aria-selected', 'true');
+  }
+});
+
+for (const [buttonName, pointerKey] of [['Up', 'DPAD_UP'], ['Back', 'BACK'], ['Play or pause', 'MEDIA_PLAY_PAUSE']]) {
+  test(`desktop shortcuts follow a pointer click on remote ${buttonName} without reactivating it`, async ({ page }) => {
+    const data = await openKeyboardRemote(page);
+    const sidebar = page.getByRole('complementary');
+    const button = sidebar.getByRole('button', { name: buttonName, exact: true });
+    if (buttonName === 'Up') {
+      const box = await button.boundingBox();
+      await page.mouse.click(box.x + box.width / 2, box.y + 20);
+    } else await button.click();
+    await expect.poll(() => data.keys.map((item) => item.key)).toEqual([pointerKey]);
+    const start = data.keys.length;
+    await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.keyboard.press('Space');
+    await expect.poll(() => data.keys.slice(start).map((item) => item.key)).toEqual(['DPAD_DOWN', 'DPAD_CENTER', 'MEDIA_PLAY_PAUSE']);
+    expect(data.keys.every((item) => item.device_id === TV_A)).toBe(true);
+  });
+}
+
+test('desktop touchpad pointer use claims remote shortcuts from a previously edited field', async ({ page }) => {
+  const data = await openKeyboardRemote(page);
+  await destination(page, 'Apps').click();
+  const search = page.getByRole('searchbox', { name: /search/i }).or(page.getByRole('textbox', { name: /search/i }));
+  await expect(search).toBeVisible(); await search.fill('Keep this search');
+  await chooseMode(page, 'touch');
+  const pad = page.getByRole('complementary').locator('[data-remote-surface]');
+  await pad.click();
+  await expect.poll(() => data.keys.map((item) => item.key)).toEqual(['DPAD_CENTER']);
+  await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter'); await page.keyboard.press('Space');
+  await expect.poll(() => data.keys.map((item) => item.key)).toEqual(['DPAD_CENTER', 'DPAD_UP', 'DPAD_CENTER', 'MEDIA_PLAY_PAUSE']);
+  await expect(search).toHaveValue('Keep this search');
+});
+
+test('mouse-operated compact desktop controls keep hardware shortcuts active', async ({ page }) => {
+  const data = await openKeyboardRemote(page, fixtures(), { width: 1440, height: 599 });
+  await expect(destination(page, 'Controls')).toBeVisible();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect.poll(() => data.keys.map((item) => item.key)).toEqual(['BACK']);
+  await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter'); await page.keyboard.press('Space');
+  await expect.poll(() => data.keys.map((item) => item.key)).toEqual(['BACK', 'DPAD_RIGHT', 'DPAD_CENTER', 'MEDIA_PLAY_PAUSE']);
+});
+
+for (const [physical, key] of [
+  ['Space', 'MEDIA_PLAY_PAUSE'], ['k', 'MEDIA_PLAY_PAUSE'], ['Enter', 'DPAD_CENTER'],
+  ['Escape', 'BACK'], ['Backspace', 'BACK'], ['h', 'HOME'], ['m', 'MUTE'], ['[', 'MEDIA_PREVIOUS'], [']', 'MEDIA_NEXT'],
+]) {
+  test(`held desktop ${physical} sends one ${key} action per physical press`, async ({ page }) => {
+    const data = await openKeyboardRemote(page);
+    await page.clock.install();
+    await page.keyboard.down(physical);
+    await expect.poll(() => data.keys.map((item) => item.key)).toEqual([key]);
+    await page.clock.runFor(1100);
+    expect(data.keys.map((item) => item.key)).toEqual([key]);
+    await page.keyboard.up(physical);
+    await page.clock.runFor(350);
+    expect(data.keys.map((item) => item.key)).toEqual([key]);
+    await page.keyboard.press(physical);
+    await expect.poll(() => data.keys.map((item) => item.key)).toEqual([key, key]);
+  });
+}
+
+for (const [physical, key] of [['ArrowRight', 'DPAD_RIGHT'], ['Equal', 'VOLUME_UP']]) {
+  test(`held desktop ${physical} repeats and stops on release without OS-repeat duplication`, async ({ page }) => {
+    const data = await openKeyboardRemote(page);
+    await page.clock.install();
+    await page.keyboard.down(physical);
+    await expect.poll(() => data.keys.length).toBe(1);
+    // A second physical keydown while held is Chrome's OS-repeat path, not a new press.
+    await page.keyboard.down(physical);
+    await page.clock.runFor(1100);
+    await expect.poll(() => data.keys.length).toBeGreaterThan(2);
+    expect(data.keys.every((item) => item.device_id === TV_A && item.key === key)).toBe(true);
+    await page.keyboard.up(physical); await page.clock.runFor(50);
+    const stopped = data.keys.length;
+    await page.clock.runFor(600);
+    expect(data.keys).toHaveLength(stopped);
+  });
+}
+
+for (const boundary of ['window blur', 'hidden document', 'editable focus', 'native control focus', 'guide focus']) {
+  test(`held desktop navigation stops when ownership changes through ${boundary}`, async ({ page }) => {
+    const data = await openKeyboardRemote(page);
+    if (boundary === 'editable focus') {
+      await destination(page, 'Apps').click();
+      await expect(page.getByRole('searchbox').or(page.getByRole('textbox', { name: /search/i }))).toBeVisible();
+    } else if (boundary === 'guide focus') {
+      await destination(page, 'Guide').click(); await expect(page.getByRole('region', { name: 'Guide timeline' })).toBeVisible();
+    }
+    await page.clock.install();
+    await page.keyboard.down('ArrowDown'); await page.clock.runFor(800);
+    await expect.poll(() => data.keys.length).toBeGreaterThan(1);
+    if (boundary === 'window blur') await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    if (boundary === 'hidden document') await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    if (boundary === 'editable focus') await page.getByRole('searchbox').or(page.getByRole('textbox', { name: /search/i })).focus();
+    if (boundary === 'native control focus') await page.getByRole('combobox', { name: 'Control mode', exact: true }).focus();
+    if (boundary === 'guide focus') await page.getByRole('region', { name: 'Guide timeline' }).focus();
+    await page.clock.runFor(50);
+    const stopped = data.keys.length;
+    await page.clock.runFor(600);
+    expect(data.keys).toHaveLength(stopped);
+    await page.keyboard.up('ArrowDown');
+  });
+}
+
+test('keyboard Tab still reaches native remote buttons and preserves their Enter and Space activation', async ({ page }) => {
+  const data = await openKeyboardRemote(page);
+  const back = page.getByRole('complementary').getByRole('button', { name: 'Back', exact: true });
+  await tabToNativeControl(page, back);
+  await page.keyboard.press('Enter'); await page.keyboard.press('Space');
+  await expect.poll(() => data.keys.map((item) => item.key)).toEqual(['BACK', 'BACK']);
+});
+
+test('physical navigation release stops repeating even while a browser modifier remains held', async ({ page }) => {
+  const data = await openKeyboardRemote(page);
+  await page.clock.install();
+  await page.keyboard.down('ArrowUp'); await page.clock.runFor(800);
+  await expect.poll(() => data.keys.length).toBeGreaterThan(1);
+  await page.keyboard.down('Control');
+  await page.keyboard.up('ArrowUp');
+  await page.clock.runFor(50);
+  const stopped = data.keys.length;
+  await page.clock.runFor(650);
+  expect(data.keys).toHaveLength(stopped);
+  await page.keyboard.up('Control');
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(() => data.keys.at(-1)?.key).toBe('DPAD_RIGHT');
+  expect(data.keys.every((item) => item.device_id === TV_A)).toBe(true);
+});
+
+test('desktop shortcuts work with the generic remote when no optional provider is available', async ({ page }) => {
+  const data = fixtures(); data.resources[TV_A].integration = integration(TV_A, false);
+  await openKeyboardRemote(page, data);
+  await page.getByRole('complementary').getByRole('button', { name: 'Back', exact: true }).click();
+  await expect.poll(() => data.keys.map((item) => item.key)).toEqual(['BACK']);
+  await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter'); await page.keyboard.press('Space');
+  await expect.poll(() => data.keys.map((item) => item.key)).toEqual(['BACK', 'DPAD_UP', 'DPAD_CENTER', 'MEDIA_PLAY_PAUSE']);
+  expect(data.commands).toEqual([]);
+});
+
+test('keyboard Tab and Enter keep header navigation links native', async ({ page }) => {
+  const data = await openKeyboardRemote(page);
+  const settings = page.getByRole('link', { name: 'Settings', exact: true });
+  await tabToNativeControl(page, settings);
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/settings$/);
+  expect(data.keys).toEqual([]); expect(data.commands).toEqual([]);
+});
+
+test('desktop editors native selectors dialogs and guide navigation retain their keys', async ({ page }) => {
+  const data = await openKeyboardRemote(page);
+  await destination(page, 'Apps').click();
+  const search = page.getByRole('searchbox', { name: /search/i }).or(page.getByRole('textbox', { name: /search/i }));
+  await expect(search).toBeVisible(); await search.fill('typed search');
+  await search.press('ArrowLeft'); await search.press('Space'); await search.press('k'); await search.press('Enter');
+  expect(data.keys).toEqual([]);
+  await chooseMode(page, 'text');
+  const text = page.getByRole('complementary').getByRole('textbox', { name: 'Send text to the TV', exact: true });
+  await text.fill('Unsent input'); await text.press('ArrowRight'); await text.press('Space'); await text.press('k');
+  expect(data.keys).toEqual([]);
+  await page.getByRole('main').evaluate((main) => {
+    const editor = document.createElement('div'); editor.contentEditable = 'true'; editor.setAttribute('role', 'textbox');
+    editor.setAttribute('aria-label', 'Native editable fixture'); editor.style.cssText = 'min-height:44px;width:280px'; main.append(editor);
+  });
+  const editor = page.getByRole('textbox', { name: 'Native editable fixture' });
+  await editor.fill('Editable text'); await editor.press('ArrowLeft'); await editor.press('Space'); await editor.press('m');
+  expect(data.keys).toEqual([]);
+  const mode = page.getByRole('combobox', { name: 'Control mode', exact: true });
+  await mode.focus(); await mode.press('ArrowUp'); await mode.press('Escape');
+  expect(data.keys).toEqual([]);
+  await destination(page, 'Guide').click();
+  const timeline = page.getByRole('region', { name: 'Guide timeline', exact: true });
+  await expect(timeline).toBeVisible(); await timeline.focus(); await timeline.press('ArrowRight');
+  await expect.poll(() => timeline.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  expect(data.keys).toEqual([]);
+  await page.getByRole('button', { name: /Family programme,/ }).click();
+  await expect(page.locator('dialog[open]')).toHaveCount(1);
+  await page.keyboard.press('ArrowLeft'); await page.keyboard.press('Escape');
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
+  expect(data.keys).toEqual([]);
+});
+
+test('desktop browser modifier shortcuts are never converted into TV commands', async ({ page }) => {
+  const data = await openKeyboardRemote(page);
+  await destination(page, 'Playing').click();
+  for (const chord of ['Control+ArrowUp', 'Meta+ArrowRight', 'Alt+ArrowDown', 'Control+Enter', 'Meta+Space']) await page.keyboard.press(chord);
+  await frames(page);
+  expect(data.keys).toEqual([]); expect(data.commands).toEqual([]);
+});
+
+test('held desktop navigation stops when the selected TV changes and shortcuts resume only on the new TV', async ({ page }) => {
+  const data = await openKeyboardRemote(page);
+  await page.keyboard.down('ArrowUp');
+  await expect.poll(() => data.keys.some((item) => item.device_id === TV_A && item.key === 'DPAD_UP')).toBe(true);
+  await page.evaluate((id) => { history.pushState(null, '', `/d/${id}`); window.dispatchEvent(new PopStateEvent('popstate')); }, TV_B);
+  await expect(page.getByRole('button', { name: /Bedroom TV/ }).first()).toBeVisible();
+  const stopped = data.keys.length;
+  await page.waitForTimeout(650);
+  expect(data.keys).toHaveLength(stopped);
+  await page.keyboard.up('ArrowUp');
+  await destination(page, 'Playing').click();
+  const start = data.keys.length;
+  await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter'); await page.keyboard.press('Space');
+  await expect.poll(() => data.keys.slice(start).map((item) => item.key)).toEqual(['DPAD_RIGHT', 'DPAD_CENTER', 'MEDIA_PLAY_PAUSE']);
+  expect(data.keys.slice(start).every((item) => item.device_id === TV_B)).toBe(true);
+});
+
+for (const disabled of ['unpaired', 'disabled']) {
+  test(`desktop shortcuts send no command to an ${disabled} TV`, async ({ page }) => {
+    const data = fixtures();
+    if (disabled === 'unpaired') { data.devices[0].paired = false; data.devices[0].state.connection = 'unpaired'; }
+    else { data.devices[0].enabled = false; data.devices[0].state.connection = 'disabled'; }
+    await openKeyboardRemote(page, data);
+    await destination(page, 'Playing').click();
+    for (const physical of ['ArrowUp', 'Enter', 'Space', 'k', 'm', 'Equal']) await page.keyboard.press(physical);
+    await frames(page); expect(data.keys).toEqual([]); expect(data.commands).toEqual([]);
+  });
+}
 
 test('roomy desktop defaults to Playing with one persistent right-hand remote', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
